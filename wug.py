@@ -8,7 +8,6 @@ import eng_to_ipa as ipa
 from discord import Emoji
 import requests
 import json
-from transphone import read_tokenizer
 from gruut import sentences
 import argostranslate.package
 import argostranslate.translate   
