@@ -33,7 +33,8 @@ argostranslate.package.install_from_path(package_to_install.download())
 load_dotenv()
 DISCORD_TOKEN = os.getenv('TOKEN')
 GUILD_ID = os.getenv("GUILD")
-ALLOWED_CHANNELS = os.getenv("ALLOWED_CHANNELS")
+ALLOWED_CHANNELS = os.getenv("ALLOWED_CHANNELS").strip('[]').split(',')
+
 
 # DICTIONARY_TOKEN = os.getenv('DICTIONARY')
 # THESAURUS_TOKEN = os.getenv('THESAURUS')
@@ -54,7 +55,7 @@ class MyDiscord(discord.Client):
       
 
     async def on_message(self, message, *args, **kwargs):
-        allowed_channels = [int(channel) for channel in ALLOWED_CHANNELS.split(',')]
+        allowed_channels = [int(channel.strip()) for channel in ALLOWED_CHANNELS]
         if message.author.bot or message.author == self.user:
             return
 
