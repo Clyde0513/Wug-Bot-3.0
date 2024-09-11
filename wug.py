@@ -4,30 +4,45 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from discord.ext import commands
-import eng_to_ipa as ipa
+import eng_to_ipa as ipass
 from discord import Emoji
 import requests
 import json
 from transphone import read_tokenizer
 from gruut import sentences
 import argostranslate.package
-import argostranslate.translate   
+import argostranslate.translate
+# import argostranslate.apis
 import time
 from collections import defaultdict
-    
-from_code = "en"
-to_code = "es"
+
+# api_instance = argostranslate.apis.LibreTranslateAPI()
+codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
+mappings = set()
 cooldown = {}
 
 # Download and install Argos Translate package
 argostranslate.package.update_package_index()
 available_packages = argostranslate.package.get_available_packages()
-package_to_install = next(
-    filter(
-        lambda x: x.from_code == from_code and x.to_code == to_code, available_packages
-    )
-)
-argostranslate.package.install_from_path(package_to_install.download())    
+
+# Build a dictionary of available packages based on (from_code, to_code)
+package_dict = {
+    (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
+}
+
+for from_code in codes:
+    for to_code in codes:
+        if from_code != to_code and not (from_code, to_code) in mappings:
+            # Fetch the package from the dictionary
+            package_to_install = package_dict.get((from_code, to_code))
+            if package_to_install is None:
+                continue
+            # Install the package
+            argostranslate.package.install_from_path(package_to_install.download()) 
+
+            # Note down the installed language mapping 
+            mappings.add((from_code, to_code))   
+            print((from_code, to_code))
 
 ###------------------------------TOKEN LOADERS + Error Debugging------------------------------###
 load_dotenv()
@@ -52,7 +67,6 @@ class MyDiscord(discord.Client):
         # guild = self.get_guild(int(GUILD_ID))
         # if guild:
         #     await guild.create_role(name="Muted")
-      
 
     async def on_message(self, message, *args, **kwargs):
         allowed_channels = [int(channel.strip()) for channel in ALLOWED_CHANNELS]
@@ -70,7 +84,7 @@ class MyDiscord(discord.Client):
                 if message.content.startswith(command):
                     user_id = message.author.id
                     if user_id in cooldown:
-                        await message.channel.send("Please stop spamming! Wait 5 seconds.")
+                        await message.reply("Please stop spamming! Wait 5 seconds.", mention_author=False)
                         return
                     
                     cooldown[user_id] = time.time()
@@ -92,12 +106,31 @@ class MyDiscord(discord.Client):
                     await message.channel.send(f'IPA Translation: /{phonemes_str}/')
         
     async def handle_translation(self,message):
-        text_to_translate = message.content[len('$translate '):].strip()
-        translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
-        await message.channel.send(f'Spanish Translation: {translatedText}')
+        params = message.content[len('$translate '):].strip().split(maxsplit=2)
+        if len(params) != 3:
+            await message.reply("Please send messages in this format: $translate [from-code] [to-code] [word or sentence].", mention_author=False)
+            return
+        from_code, to_code, text_to_translate = params
+        if not (from_code, to_code) in mappings:
+            if not from_code in codes or not to_code in codes:
+                await message.reply('Please enter an available language (type $help for a list of available languages).', mention_author=False)
+                return
+            for code in codes:
+                if code == from_code or code == to_code:
+                    continue
+                if (from_code, code) in mappings and (code, to_code) in mappings:
+                    tempTranslation = argostranslate.translate.translate(text_to_translate,from_code,code)
+                    translatedText = argostranslate.translate.translate(tempTranslation,code,to_code)
+                    await message.channel.send(f'Translation: {translatedText}')
+                    return
+            await message.reply('Sorry, translations between these languages are not yet supported.', mention_author=False)
+            return
+        else:
+            translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
+            await message.channel.send(f'Translation: {translatedText}')
 
     async def handle_help(self,message):
-        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\nType '$translate [word or sentence]' to translate English words to Spanish")    
+        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.")    
 
 intents = discord.Intents.default()
 intents.message_content = True

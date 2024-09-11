@@ -1,0 +1,6 @@
+python-dotenv
+eng_to_ipa
+requests
+transphone
+gruut
+argostranslate
