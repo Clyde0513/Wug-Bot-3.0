@@ -1,5 +1,4 @@
 .env
-.venv
-wugbot
-.discord.log
+.gitignore
+.conda
 discord.log

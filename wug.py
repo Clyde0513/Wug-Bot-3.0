@@ -18,6 +18,7 @@ from collections import defaultdict
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
 mappings = set()
+processed = set()
 cooldown = {}
 
 # Download and install Argos Translate package
@@ -29,19 +30,32 @@ package_dict = {
     (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
 }
 
-for from_code in codes:
-    for to_code in codes:
-        if from_code != to_code and not (from_code, to_code) in mappings:
-            # Fetch the package from the dictionary
-            package_to_install = package_dict.get((from_code, to_code))
-            if package_to_install is None:
-                continue
-            # Install the package
-            argostranslate.package.install_from_path(package_to_install.download()) 
 
-            # Note down the installed language mapping 
-            mappings.add((from_code, to_code))   
-            print((from_code, to_code))
+for from_code in codes:
+    if from_code in processed:
+        continue
+    for to_code in codes:
+        if from_code == to_code:
+            continue
+        package_to_install = package_dict.get((from_code, to_code))
+        if package_to_install is not None:
+            # argostranslate.package.install_from_path(package_to_install)
+            mappings.add((from_code, to_code))
+    processed.add(from_code)
+
+# for from_code in codes:
+#     for to_code in codes:
+#         if from_code != to_code and not (from_code, to_code) in mappings:
+#             # Fetch the package from the dictionary
+#             package_to_install = package_dict.get((from_code, to_code))
+#             if package_to_install is None:
+#                 continue
+#             # Install the package
+#             argostranslate.package.install_from_path(package_to_install.download()) 
+
+#             # Note down the installed language mapping 
+#             mappings.add((from_code, to_code))   
+#             print((from_code, to_code))
 
 ###------------------------------TOKEN LOADERS + Error Debugging------------------------------###
 load_dotenv()
