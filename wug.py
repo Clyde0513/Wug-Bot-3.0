@@ -4,7 +4,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from discord.ext import commands
-import eng_to_ipa as ipass
+import eng_to_ipa as ipa
 from discord import Emoji
 import requests
 import json
@@ -14,6 +14,9 @@ import argostranslate.translate
 # import argostranslate.apis
 import time
 from collections import defaultdict
+import nltk
+from nltk.corpus import words as nltk_words
+from nltk.tokenize import LegalitySyllableTokenizer
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
@@ -41,7 +44,8 @@ for from_code in codes:
         if package_to_install is not None:
             # argostranslate.package.install_from_path(package_to_install)
             mappings.add((from_code, to_code))
-    processed.add(from_code)
+            processed.add(from_code)
+            print((from_code, to_code))
 
 # for from_code in codes:
 #     for to_code in codes:
@@ -92,6 +96,7 @@ class MyDiscord(discord.Client):
                 '$ipa ' : self.handle_ipa,
                 '$translate ' : self.handle_translation,
                 '$help' : self.handle_help,
+                '$syllabify ' : self.handle_syllabification
             }
             for command, handler in commands_dict.items(): # Command is key; handler is value
                 if message.content.startswith(command):
@@ -142,8 +147,124 @@ class MyDiscord(discord.Client):
             translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
             await message.channel.send(f'Translation: {translatedText}')
 
+    async def handle_syllabification(self,message):
+        # nltk.download('words')
+        # Uncomment the line to download the package once, then it can be commented again
+        words = message.content[len('$syllabify '):].strip().split()
+        reply = ''
+
+        # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
+        vowelSet = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ','ɐ','a','ɶ','ä','ɑ','ɒ','ɚ','ɔ˞','ɔ˞'])
+
+        # Source: https://en.wikipedia.org/wiki/Help:IPA/English
+        # onsetClusters = set(['p','b','t', 'ɾ', 'd', 'tʃ', 'dʒ', 'k', 'ɡ', 'dj', 'ð', 'f', 'g', 'h', 'j', 'k', 'l', 'lj', 'm', 'n', 'nj', 'ɹ', 's', 'ʃ',  'v', 'w', 'z', 'ʒ', 'θ' 'pl', 'bl', 'kl', 'gl', 'pɹ', 'bɹ', 'tɹ', 'dɹ', 'kɹ', 'gɹ', 'tw', 'dw', 'gw', 'kw', 'pw', 'fl', 'sl', 'θl', 'ʃl', 'fɹ', 'θɹ', 'ʃɹ', 'sw', 'θw', 'vw', 'pj', 'bj', 'tj', 'kj', 'gj', 'mj', 'fj', 'vj', 'θj', 'sj', 'zj', 'hj', 'lj', 'sp', 'st', 'sk', 'sm', 'sn', 'sf', 'sθ', 'spl', 'skl', 'spɹ', 'stɹ', 'skw', 'spj', 'stj', 'skj', 'smj', 'snj', 'sfɹ'])
+        tknzr = LegalitySyllableTokenizer(nltk_words.words())
+
+        
+        for word in words:
+            reply += '•••••••••••••••\n'
+            ipaTranslation = ''
+
+            for sent in sentences(word,lang="en-us"):
+                for wrd in sent:
+                    if (wrd.phonemes):
+                        ipaTranslation = ((''.join(wrd.phonemes)).replace("ˈ","")).replace("ˌ","")
+            
+            if ipaTranslation == '':
+                reply += f'Word: {word}\n'
+                syllables = tknzr.tokenize(word)
+                syllabifiedText = '-'.join(syllables)
+                reply += f'Syllabification: {syllabifiedText}\n'
+                continue
+
+            reply += f'Word: {word} ({ipaTranslation})\n'
+            syllables = tknzr.tokenize(word)
+            syllabifiedText = '-'.join(syllables)
+            syllablesIPA = []
+            for syllable in syllables:
+                for sent in sentences(syllable,lang="en-us"):
+                    for syl in sent:
+                        if (syl.phonemes):
+                            syllablesIPA.append(((''.join(syl.phonemes)).replace("ˈ","")).replace("ˌ",""))
+            syllabifiedIPAText = '-'.join(syllablesIPA)
+            reply += f'Syllabification: {syllabifiedText} ({syllabifiedIPAText})\n'
+            reply += '•••••••••••••••\n'
+
+            '''
+            nuclei = []
+            ipaRaw = ipaTranslation.replace("'","")
+            startVowels = -1
+            endVowels = -1
+            currentRun = False
+            syllableNum = 0
+            i = 0
+            while i < len(ipaRaw):
+                if ipaRaw[i] in vowelSet:
+                    if not currentRun:
+                        startVowels = i
+                        currentRun = True
+                    endVowels = i
+                    if i == len(ipaRaw)-1:
+                        nuclei.append((startVowels, endVowels, syllableNum))
+                        syllableNum += 1
+                else:
+                    if currentRun:
+                        nuclei.append((startVowels, endVowels, syllableNum))
+                        syllableNum += 1
+                    currentRun = False
+                i += 1
+
+            start = 0
+            onsets = []
+            for nucleus in nuclei:
+                maxClusterStart = start
+                for i in range (start, nucleus[0]):
+                    if word[start:nucleus[0]] in onsetClusters:
+                        maxClusterStart = i
+                        onsets.append(maxClusterStart, nucleus[0]-1, nucleus[2])
+                start = nucleus[1]+1
+            
+            syllableCount = nuclei[-1][2]+1
+
+            for i in range(syllableCount):
+        '''
+
+            for syllable in syllablesIPA:
+                startVowels = -1
+                endVowels = -1
+                i = 0
+                startSet = False
+
+                while i < len(syllable):
+                    if syllable[i] in vowelSet:
+                        if not startSet:
+                            startVowels = i
+                            startSet = True
+                        endVowels = i
+                    else:
+                        if startSet:
+                            break
+                    i += 1
+
+                onset, nucleus, coda = 'none', 'none', 'none'
+
+                if (startVowels > 0):
+                    onset = syllable[:startVowels]
+
+                nucleus = syllable[startVowels:endVowels+1]
+
+                if (endVowels < len(syllable)-1) and (endVowels != -1):
+                    coda = syllable[endVowels+1:]
+
+                reply += f' Syllable: {syllable}\n'
+                reply += f'   Onset: {onset}\n'
+                reply += f'   Nucleus: {nucleus}\n'
+                reply += f'   Coda: {coda}\n'
+        
+        await message.channel.send(reply)
+
     async def handle_help(self,message):
-        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.")    
+        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
 
 intents = discord.Intents.default()
 intents.message_content = True
