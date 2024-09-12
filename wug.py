@@ -4,7 +4,6 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from discord.ext import commands
-import eng_to_ipa as ipass
 from discord import Emoji
 import requests
 import json
@@ -30,7 +29,6 @@ package_dict = {
     (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
 }
 
-
 for from_code in codes:
     if from_code in processed:
         continue
@@ -41,21 +39,8 @@ for from_code in codes:
         if package_to_install is not None:
             # argostranslate.package.install_from_path(package_to_install)
             mappings.add((from_code, to_code))
+            
     processed.add(from_code)
-
-# for from_code in codes:
-#     for to_code in codes:
-#         if from_code != to_code and not (from_code, to_code) in mappings:
-#             # Fetch the package from the dictionary
-#             package_to_install = package_dict.get((from_code, to_code))
-#             if package_to_install is None:
-#                 continue
-#             # Install the package
-#             argostranslate.package.install_from_path(package_to_install.download()) 
-
-#             # Note down the installed language mapping 
-#             mappings.add((from_code, to_code))   
-#             print((from_code, to_code))
 
 ###------------------------------TOKEN LOADERS + Error Debugging------------------------------###
 load_dotenv()
@@ -121,7 +106,7 @@ class MyDiscord(discord.Client):
     async def handle_translation(self,message):
         params = message.content[len('$translate '):].strip().split(maxsplit=2)
         if len(params) != 3:
-            await message.reply("Please send messages in this format: $translate [from-code] [to-code] [word or sentence].", mention_author=False)
+            await message.reply("Please send messages in this format: $translate [from-lang] [to-lang] [word or sentence].", mention_author=False)
             return
         from_code, to_code, text_to_translate = params
         if not (from_code, to_code) in mappings:
@@ -143,7 +128,7 @@ class MyDiscord(discord.Client):
             await message.channel.send(f'Translation: {translatedText}')
 
     async def handle_help(self,message):
-        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.")    
+        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-lang] [to-lang] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.")    
 
 intents = discord.Intents.default()
 intents.message_content = True

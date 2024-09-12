@@ -4,3 +4,6 @@ requests
 transphone
 gruut
 argostranslate
+discord
+logging
+requests
