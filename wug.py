@@ -4,7 +4,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from discord.ext import commands
-import eng_to_ipa as ipass
+import eng_to_ipa as ipa
 from discord import Emoji
 import requests
 import json
@@ -14,8 +14,6 @@ import argostranslate.translate
 # import argostranslate.apis
 import time
 from collections import defaultdict
-import nltk
-from nltk.corpus import words as nltk_words
 from nltk.tokenize import LegalitySyllableTokenizer
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
@@ -33,6 +31,7 @@ package_dict = {
     (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
 }
 
+
 for from_code in codes:
     if from_code in processed:
         continue
@@ -43,7 +42,8 @@ for from_code in codes:
         if package_to_install is not None:
             # argostranslate.package.install_from_path(package_to_install)
             mappings.add((from_code, to_code))
-    processed.add(from_code)
+            processed.add(from_code)
+            print((from_code, to_code))
 
 # for from_code in codes:
 #     for to_code in codes:
@@ -124,7 +124,31 @@ class MyDiscord(discord.Client):
     async def handle_translation(self,message):
         params = message.content[len('$translate '):].strip().split(maxsplit=2)
         if len(params) != 3:
-            await message.reply("Please send messages in this format: $translate [from-lang] [to-lang] [word or sentence].", mention_author=False)
+            await message.reply("Please send messages in this format: $translate [from-code] [to-code] [word or sentence].", mention_author=False)
+            return
+        from_code, to_code, text_to_translate = params
+        if not (from_code, to_code) in mappings:
+            if not from_code in codes or not to_code in codes:
+                await message.reply('Please enter an available language (type $help for a list of available languages).', mention_author=False)
+                return
+            for code in codes:
+                if code == from_code or code == to_code:
+                    continue
+                if (from_code, code) in mappings and (code, to_code) in mappings:
+                    tempTranslation = argostranslate.translate.translate(text_to_translate,from_code,code)
+                    translatedText = argostranslate.translate.translate(tempTranslation,code,to_code)
+                    await message.channel.send(f'Translation: {translatedText}')
+                    return
+            await message.reply('Sorry, translations between these languages are not yet supported.', mention_author=False)
+            return
+        else:
+            translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
+            await message.channel.send(f'Translation: {translatedText}')
+
+    async def handle_translation(self,message):
+        params = message.content[len('$translate '):].strip().split(maxsplit=2)
+        if len(params) != 3:
+            await message.reply("Please send messages in this format: $translate [from-code] [to-code] [word or sentence].", mention_author=False)
             return
         from_code, to_code, text_to_translate = params
         if not (from_code, to_code) in mappings:
@@ -146,19 +170,31 @@ class MyDiscord(discord.Client):
             await message.channel.send(f'Translation: {translatedText}')
 
     async def handle_syllabification(self,message):
-        # nltk.download('words')
-        # Uncomment the line to download the package once, then it can be commented again
         words = message.content[len('$syllabify '):].strip().split()
         reply = ''
 
         # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
-        vowelSet = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ','ɐ','a','ɶ','ä','ɑ','ɒ','ɚ','ɔ˞','ɔ˞'])
+        vowels = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ',
+        'ɐ','a','ɶ','ä','ɑ','ɒ','ɚ','ɔ˞','ɔ˞'])
+
+        # Source: https://en.wikipedia.org/wiki/Diphthong
+        diphthongs = set(['oʊ', 'aʊ', 'aɪ', 'eɪ', 'ɔɪ'])
 
         # Source: https://en.wikipedia.org/wiki/Help:IPA/English
-        # onsetClusters = set(['p','b','t', 'ɾ', 'd', 'tʃ', 'dʒ', 'k', 'ɡ', 'dj', 'ð', 'f', 'g', 'h', 'j', 'k', 'l', 'lj', 'm', 'n', 'nj', 'ɹ', 's', 'ʃ',  'v', 'w', 'z', 'ʒ', 'θ' 'pl', 'bl', 'kl', 'gl', 'pɹ', 'bɹ', 'tɹ', 'dɹ', 'kɹ', 'gɹ', 'tw', 'dw', 'gw', 'kw', 'pw', 'fl', 'sl', 'θl', 'ʃl', 'fɹ', 'θɹ', 'ʃɹ', 'sw', 'θw', 'vw', 'pj', 'bj', 'tj', 'kj', 'gj', 'mj', 'fj', 'vj', 'θj', 'sj', 'zj', 'hj', 'lj', 'sp', 'st', 'sk', 'sm', 'sn', 'sf', 'sθ', 'spl', 'skl', 'spɹ', 'stɹ', 'skw', 'spj', 'stj', 'skj', 'smj', 'snj', 'sfɹ'])
+        onsetClusters = set(['p','b','t','ɾ','d','tʃ','dʒ','k','ɡ','dj','ð','f','g','h','j',
+        'k','l','lj','m','n','nj','ɹ','s','ʃ','v','w','z','ʒ','θ','pl','bl','kl','gl','pɹ','bɹ','tɹ','dɹ','kɹ',
+        'gɹ','tw','dw','gw','kw','pw','fl','sl','θl','ʃl','fɹ','θɹ','ʃɹ','sw','θw','vw','pj','bj','tj','kj','gj',
+        'mj','fj','vj','θj','sj','zj','hj','lj','sp','st','sk','sm','sn','sf','sθ','spl','skl','spɹ','stɹ','skw',
+        'spj','stj','skj','smj','snj','sfɹ', 'd͡ʒ'])
+
+        def find_longest_onset(cluster):
+            for i in range(len(cluster), 0, -1):
+                if cluster[:i] in onsetClusters:
+                    return i
+            return 0
+        
         tknzr = LegalitySyllableTokenizer(nltk_words.words())
 
-        
         for word in words:
             reply += '•••••••••••••••\n'
             ipaTranslation = ''
@@ -176,93 +212,65 @@ class MyDiscord(discord.Client):
                 continue
 
             reply += f'Word: {word} ({ipaTranslation})\n'
-            syllables = tknzr.tokenize(word)
-            syllabifiedText = '-'.join(syllables)
-            syllablesIPA = []
-            for syllable in syllables:
-                for sent in sentences(syllable,lang="en-us"):
-                    for syl in sent:
-                        if (syl.phonemes):
-                            syllablesIPA.append(((''.join(syl.phonemes)).replace("ˈ","")).replace("ˌ",""))
-            syllabifiedIPAText = '-'.join(syllablesIPA)
-            reply += f'Syllabification: {syllabifiedText} ({syllabifiedIPAText})\n'
-            reply += '•••••••••••••••\n'
-
-            '''
-            nuclei = []
-            ipaRaw = ipaTranslation.replace("'","")
-            startVowels = -1
-            endVowels = -1
-            currentRun = False
-            syllableNum = 0
+            syllables = []
             i = 0
-            while i < len(ipaRaw):
-                if ipaRaw[i] in vowelSet:
-                    if not currentRun:
-                        startVowels = i
-                        currentRun = True
-                    endVowels = i
-                    if i == len(ipaRaw)-1:
-                        nuclei.append((startVowels, endVowels, syllableNum))
-                        syllableNum += 1
+            while i < len(ipaTranslation):
+                # Find the next vowel or diphthong
+                j = i
+                while j < len(ipaTranslation) and ipaTranslation[j] not in vowels:
+                    j += 1
+                if j == len(ipaTranslation):
+                    break
+
+                # Check for diphthong
+                if j < len(ipaTranslation) - 1 and ipaTranslation[j:j+2] in diphthongs:
+                    nucleus_end = j + 1
                 else:
-                    if currentRun:
-                        nuclei.append((startVowels, endVowels, syllableNum))
-                        syllableNum += 1
-                    currentRun = False
-                i += 1
+                    nucleus_end = j
 
-            start = 0
-            onsets = []
-            for nucleus in nuclei:
-                maxClusterStart = start
-                for i in range (start, nucleus[0]):
-                    if word[start:nucleus[0]] in onsetClusters:
-                        maxClusterStart = i
-                        onsets.append(maxClusterStart, nucleus[0]-1, nucleus[2])
-                start = nucleus[1]+1
-            
-            syllableCount = nuclei[-1][2]+1
+                # Find the onset of the next syllable
+                k = nucleus_end + 1
+                while k < len(ipaTranslation) and ipaTranslation[k] not in vowels:
+                    k += 1
+                
+                if k < len(ipaTranslation):
+                    next_onset_length = find_longest_onset(ipaTranslation[nucleus_end+1:k])
+                    coda_end = k - next_onset_length - 1
+                else:
+                    coda_end = len(ipaTranslation) - 1
 
-            for i in range(syllableCount):
-        '''
+                syllables.append((i, coda_end))
+                i = coda_end + 1
 
-            for syllable in syllablesIPA:
-                startVowels = -1
-                endVowels = -1
-                i = 0
-                startSet = False
+            for idx, (start, end) in enumerate(syllables):
+                syllable_text = ipaTranslation[start:end+1]
+                reply += f'  Syllable: {syllable_text}\n'
 
-                while i < len(syllable):
-                    if syllable[i] in vowelSet:
-                        if not startSet:
-                            startVowels = i
-                            startSet = True
-                        endVowels = i
-                    else:
-                        if startSet:
-                            break
-                    i += 1
+                # Find onset
+                j = start
+                while j <= end and ipaTranslation[j] not in vowels:
+                    j += 1
+                if j > start:
+                    reply += f'   Onset: {ipaTranslation[start:j]}\n'
+                else:
+                    reply += f'   Onset: none\n'
 
-                onset, nucleus, coda = 'none', 'none', 'none'
+                # Find nucleus
+                k = j
+                while k <= end and (ipaTranslation[k] in vowels or (k < end and ipaTranslation[k:k+2] in diphthongs)):
+                    k += 1
+                reply += f'   Nucleus: {ipaTranslation[j:k]}\n'
 
-                if (startVowels > 0):
-                    onset = syllable[:startVowels]
+                # Find coda
+                if k <= end:
+                    reply += f'   Coda: {ipaTranslation[k:end+1]}\n'
+                else:
+                    reply += f'   Coda: none\n'
 
-                nucleus = syllable[startVowels:endVowels+1]
-
-                if (endVowels < len(syllable)-1) and (endVowels != -1):
-                    coda = syllable[endVowels+1:]
-
-                reply += f' Syllable: {syllable}\n'
-                reply += f'   Onset: {onset}\n'
-                reply += f'   Nucleus: {nucleus}\n'
-                reply += f'   Coda: {coda}\n'
-        
         await message.channel.send(reply)
-
+        
     async def handle_help(self,message):
-        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-lang] [to-lang] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
+        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
 
 intents = discord.Intents.default()
 intents.message_content = True
