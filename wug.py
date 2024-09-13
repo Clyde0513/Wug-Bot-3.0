@@ -14,6 +14,7 @@ import argostranslate.translate
 # import argostranslate.apis
 import time
 from collections import defaultdict
+from nltk.corpus import words as nltk_words
 from nltk.tokenize import LegalitySyllableTokenizer
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
@@ -170,6 +171,9 @@ class MyDiscord(discord.Client):
             await message.channel.send(f'Translation: {translatedText}')
 
     async def handle_syllabification(self,message):
+        # Uncomment the line to download the package once, then it can be commented again
+        # nltk.download('words')
+        
         words = message.content[len('$syllabify '):].strip().split()
         reply = ''
 
