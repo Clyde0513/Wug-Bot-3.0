@@ -173,7 +173,7 @@ class MyDiscord(discord.Client):
     async def handle_syllabification(self,message):
         # Uncomment the line to download the package once, then it can be commented again
         # nltk.download('words')
-        
+
         words = message.content[len('$syllabify '):].strip().split()
         reply = ''
 
@@ -192,10 +192,23 @@ class MyDiscord(discord.Client):
         'spj','stj','skj','smj','snj','sfɹ', 'd͡ʒ'])
 
         def find_longest_onset(cluster):
-            for i in range(len(cluster), 0, -1):
-                if cluster[:i] in onsetClusters:
-                    return i
-            return 0
+            longest_length = 0
+            n = len(cluster)
+            dp = [ [-1]*(n+1) for _ in range(n+1) ]
+    
+            # Iterate over all possible starting points for substrings
+            for start in range(len(cluster)):
+                # Iterate over all possible ending points for substrings starting from `start`
+                for end in range(start + 1, n + 1):
+                    if (dp[start][end] != -1):
+                        return max(longest_length, dp[start][end])
+                    else:
+                        substring = cluster[start:end]
+                        if substring in onsetClusters:
+                            dp[start][end] = end-start
+                            longest_length = max(longest_length, dp[start][end])
+                        
+            return longest_length
         
         tknzr = LegalitySyllableTokenizer(nltk_words.words())
 
@@ -203,10 +216,11 @@ class MyDiscord(discord.Client):
             reply += '•••••••••••••••\n'
             ipaTranslation = ''
 
-            for sent in sentences(word,lang="en-us"):
+            # Simplified phoneme extraction
+            for sent in sentences(word, lang="en-us"):
                 for wrd in sent:
-                    if (wrd.phonemes):
-                        ipaTranslation = ((''.join(wrd.phonemes)).replace("ˈ","")).replace("ˌ","")
+                    if wrd.phonemes:
+                        ipaTranslation = (''.join(wrd.phonemes)).replace("ˈ", "").replace("ˌ", "")
             
             if ipaTranslation == '':
                 reply += f'Word: {word}\n'
@@ -219,29 +233,19 @@ class MyDiscord(discord.Client):
             syllables = []
             i = 0
             while i < len(ipaTranslation):
-                # Find the next vowel or diphthong
                 j = i
                 while j < len(ipaTranslation) and ipaTranslation[j] not in vowels:
                     j += 1
                 if j == len(ipaTranslation):
                     break
 
-                # Check for diphthong
-                if j < len(ipaTranslation) - 1 and ipaTranslation[j:j+2] in diphthongs:
-                    nucleus_end = j + 1
-                else:
-                    nucleus_end = j
+                nucleus_end = j + 1 if j < len(ipaTranslation) - 1 and ipaTranslation[j:j+2] in diphthongs else j
 
-                # Find the onset of the next syllable
                 k = nucleus_end + 1
                 while k < len(ipaTranslation) and ipaTranslation[k] not in vowels:
                     k += 1
-                
-                if k < len(ipaTranslation):
-                    next_onset_length = find_longest_onset(ipaTranslation[nucleus_end+1:k])
-                    coda_end = k - next_onset_length - 1
-                else:
-                    coda_end = len(ipaTranslation) - 1
+
+                coda_end = k - find_longest_onset(ipaTranslation[nucleus_end+1:k]) - 1 if k < len(ipaTranslation) else len(ipaTranslation) - 1
 
                 syllables.append((i, coda_end))
                 i = coda_end + 1
@@ -254,22 +258,16 @@ class MyDiscord(discord.Client):
                 j = start
                 while j <= end and ipaTranslation[j] not in vowels:
                     j += 1
-                if j > start:
-                    reply += f'   Onset: {ipaTranslation[start:j]}\n'
-                else:
-                    reply += f'   Onset: none\n'
+                reply += f'     Onset: {ipaTranslation[start:j] if j > start else "none"}\n'
 
                 # Find nucleus
                 k = j
                 while k <= end and (ipaTranslation[k] in vowels or (k < end and ipaTranslation[k:k+2] in diphthongs)):
                     k += 1
-                reply += f'   Nucleus: {ipaTranslation[j:k]}\n'
+                reply += f'     Nucleus: {ipaTranslation[j:k]}\n'
 
                 # Find coda
-                if k <= end:
-                    reply += f'   Coda: {ipaTranslation[k:end+1]}\n'
-                else:
-                    reply += f'   Coda: none\n'
+                reply += f'     Coda: {ipaTranslation[k:end+1] if k <= end else "none"}\n'
 
         await message.channel.send(reply)
         
