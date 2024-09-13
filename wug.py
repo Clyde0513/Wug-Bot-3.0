@@ -11,11 +11,11 @@ import json
 from gruut import sentences
 import argostranslate.package
 import argostranslate.translate
-# import argostranslate.apis
 import time
 from collections import defaultdict
 from nltk.corpus import words as nltk_words
 from nltk.tokenize import LegalitySyllableTokenizer
+import re
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
@@ -174,7 +174,12 @@ class MyDiscord(discord.Client):
         # Uncomment the line to download the package once, then it can be commented again
         # nltk.download('words')
 
-        words = message.content[len('$syllabify '):].strip().split()
+        words = (re.sub(r'[^a-zA-Z\s]', '', message.content[len('$syllabify '):])).strip().split()
+
+        if not words:
+            await message.reply('Please include at least one alphabetic character in your prompt!', mention_author=False)
+            return
+
         reply = ''
 
         # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
