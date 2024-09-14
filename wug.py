@@ -120,30 +120,6 @@ class MyDiscord(discord.Client):
                 if word.phonemes:
                     phonemes_str = ' '.join(word.phonemes)
                     await message.channel.send(f'IPA Translation: /{phonemes_str}/')
-        
-    async def handle_translation(self,message):
-        params = message.content[len('$translate '):].strip().split(maxsplit=2)
-        if len(params) != 3:
-            await message.reply("Please send messages in this format: $translate [from-code] [to-code] [word or sentence].", mention_author=False)
-            return
-        from_code, to_code, text_to_translate = params
-        if not (from_code, to_code) in mappings:
-            if not from_code in codes or not to_code in codes:
-                await message.reply('Please enter an available language (type $help for a list of available languages).', mention_author=False)
-                return
-            for code in codes:
-                if code == from_code or code == to_code:
-                    continue
-                if (from_code, code) in mappings and (code, to_code) in mappings:
-                    tempTranslation = argostranslate.translate.translate(text_to_translate,from_code,code)
-                    translatedText = argostranslate.translate.translate(tempTranslation,code,to_code)
-                    await message.channel.send(f'Translation: {translatedText}')
-                    return
-            await message.reply('Sorry, translations between these languages are not yet supported.', mention_author=False)
-            return
-        else:
-            translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
-            await message.channel.send(f'Translation: {translatedText}')
 
     async def handle_translation(self,message):
         params = message.content[len('$translate '):].strip().split(maxsplit=2)
