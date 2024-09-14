@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import discord
 import logging
 import asyncio
@@ -14,8 +13,6 @@ import argostranslate.package
 import argostranslate.translate
 import time
 from collections import defaultdict
-from nltk.corpus import words as nltk_words
-from nltk.tokenize import LegalitySyllableTokenizer
 import regex as re
 import unicodedata
 
@@ -172,19 +169,7 @@ class MyDiscord(discord.Client):
             translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
             await message.channel.send(f'Translation: {translatedText}')
 
-    async def handle_syllabification(self,message):
-        # Uncomment the line to download the package once, then it can be commented again
-        # nltk.download('words')
-        
-        cleaned_string = re.sub(r'[^a-zA-Z\s-]', '', message.content[len('$syllabify '):])
-        words = re.split(r'[ \-]+', cleaned_string.strip())
-
-        if not words:
-            await message.reply('Please include at least one alphabetic character in your prompt!', mention_author=False)
-            return
-    
-        reply = ''
-
+    async def handle_syllabification(self,message):        
         # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
         vowels = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ',
         'ɐ','a','ɶ','ä','ɑ','ɒ','ɚ'])
@@ -195,7 +180,7 @@ class MyDiscord(discord.Client):
         # Source: https://en.wikipedia.org/wiki/Help:IPA/English
         onsetClusters = set(['p','b','t','ɾ','d','tʃ','dʒ','k','ɡ','dj','ð','f','g','h','j',
         'k','l','lj','m','n','nj','ɹ','s','ʃ','v','w','z','ʒ','θ','pl','bl','kl','gl','pɹ','bɹ','tɹ','dɹ','kɹ',
-        'gɹ','tw','dw','gw','kw','pw','fl','sl','θl','ʃl','fɹ','θɹ','ʃɹ','sw','θw','vw','pj','bj','tj','kj','gj',
+        'gɹ','ɡɹ','ɡ','tw','dw','gw','kw','pw','fl','sl','θl','ʃl','fɹ','θɹ','ʃɹ','sw','θw','vw','pj','bj','tj','kj','gj',
         'mj','fj','vj','θj','sj','zj','hj','lj','sp','st','sk','sm','sn','sf','sθ','spl','skl','spɹ','stɹ','skw',
         'spj','stj','skj','smj','snj','sfɹ'])
 
@@ -209,70 +194,75 @@ class MyDiscord(discord.Client):
             # Optionally, normalize back to NFC (Normalization Form C) if needed
             return unicodedata.normalize('NFC', s_no_diacritics)
 
-        def find_longest_onset(cluster):
-            longest_length = 0
+        def find_onsets(cluster):
             n = len(cluster)
-            dp = [ [-1]*(n+1) for _ in range(n+1) ]
+            lengths = []
     
             # Iterate over all possible starting points for substrings
             for start in range(len(cluster)):
                 # Iterate over all possible ending points for substrings starting from `start`
                 for end in range(start + 1, n + 1):
-                    if (dp[start][end] != -1):
-                        return max(longest_length, dp[start][end])
-                    else:
-                        substring = cluster[start:end]
-                        if substring in onsetClusters:
-                            dp[start][end] = end-start
-                            longest_length = max(longest_length, dp[start][end])
-                        
-            return longest_length
+                    substring = cluster[start:end]
+                    if substring in onsetClusters:
+                        lengths.append(((end-start), start, end))
         
-        tknzr = LegalitySyllableTokenizer(nltk_words.words())
+            return sorted(lengths, reverse=True, key=lambda x: x[0])
+        
+        cleaned_string = re.sub(r'[^a-zA-Z\s-]', '', message.content[len('$syllabify '):])
+        reply = ''
+        words = []
+        ipa = []
 
-        for word in words:
+        # Convert each word in the sentence to IPA
+        for sent in sentences(cleaned_string,lang="en-us"):
+            for word in sent:
+                if (word.phonemes):
+                    words.append(word.text)
+                    ipa.append(remove_diacritics(((''.join(word.phonemes)).replace("ˈ","")).replace("ˌ","")))
+        
+        if not ipa:
+            await message.reply('Please include at least one alphabetic character in your prompt!', mention_author=False)
+            return
+
+        for word in ipa:
             reply += '•••••••••••••••\n'
-            ipaTranslation = ''
-
-            for sent in sentences(word,lang="en-us"):
-                for wrd in sent:
-                    if (wrd.phonemes):
-                        ipaTranslation = remove_diacritics(((''.join(wrd.phonemes)).replace("ˈ","")).replace("ˌ",""))
-            
-            if ipaTranslation == '':
-                reply += f'Word: {word}\n'
-                syllables = tknzr.tokenize(word)
-                syllabifiedText = '-'.join(syllables)
-                reply += f'Syllabification: {syllabifiedText}\n'
-                continue
-
-            reply += f'Word: {word} ({ipaTranslation})\n'
+                    
+            reply += f'Word: {words[ipa.index(word)]} ({word})\n'
             syllables = []
             i = 0
-            while i < len(ipaTranslation):
+
+            while i < len(word):
                 # Find the next vowel or diphthong
                 j = i
-                while j < len(ipaTranslation) and ipaTranslation[j] not in vowels:
+                while j < len(word) and word[j] not in vowels:
                     j += 1
-                if j == len(ipaTranslation):
+                if j == len(word):
                     break
 
                 # Check for diphthong
-                if j < len(ipaTranslation) - 1 and ipaTranslation[j:j+2] in diphthongs:
+                if j < len(word) - 1 and word[j:j+2] in diphthongs:
                     nucleus_end = j + 1
                 else:
                     nucleus_end = j
 
                 # Find the onset of the next syllable
                 k = nucleus_end + 1
-                while k < len(ipaTranslation) and ipaTranslation[k] not in vowels:
+                while k < len(word) and word[k] not in vowels:
                     k += 1
                 
-                if k < len(ipaTranslation):
-                    next_onset_length = find_longest_onset(ipaTranslation[nucleus_end+1:k])
-                    coda_end = k - next_onset_length - 1
+                if k < len(word):
+                    onsets = find_onsets(word[nucleus_end+1:k])
+                    
+                    # Find the longest onset cluster whose next character is a vowel
+                    if onsets:
+                        for onset in onsets:
+                             if (word[nucleus_end+1+onset[0]+onset[1]] in vowels):
+                                coda_end = nucleus_end+onset[1]
+                                break
+                    else:
+                        coda_end = k-1
                 else:
-                    coda_end = len(ipaTranslation) - 1
+                    coda_end = len(word) - 1
 
                 syllables.append((i, coda_end))
                 i = coda_end + 1
@@ -280,27 +270,27 @@ class MyDiscord(discord.Client):
             reply += f'Syllable count: {len(syllables)}\n'
 
             for idx, (start, end) in enumerate(syllables):
-                syllable_text = ipaTranslation[start:end+1]
+                syllable_text = word[start:end+1]
                 reply += f'  Syllable: {syllable_text}\n'
 
                 # Find onset
                 j = start
-                while j <= end and ipaTranslation[j] not in vowels:
+                while j <= end and word[j] not in vowels:
                     j += 1
                 if j > start:
-                    reply += f'     Onset: {ipaTranslation[start:j]}\n'
+                    reply += f'     Onset: {word[start:j]}\n'
                 else:
                     reply += f'     Onset: none\n'
 
                 # Find nucleus
                 k = j
-                while k <= end and (ipaTranslation[k] in vowels or (k < end and ipaTranslation[k:k+2] in diphthongs)):
+                while k <= end and (word[k] in vowels or (k < end and word[k:k+2] in diphthongs)):
                     k += 1
-                reply += f'     Nucleus: {ipaTranslation[j:k]}\n'
+                reply += f'     Nucleus: {word[j:k]}\n'
 
                 # Find coda
                 if k <= end:
-                    reply += f'     Coda: {ipaTranslation[k:end+1]}\n'
+                    reply += f'     Coda: {word[k:end+1]}\n'
                 else:
                     reply += f'     Coda: none\n'
 
