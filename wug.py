@@ -15,6 +15,12 @@ import time
 from collections import defaultdict
 import regex as re
 import unicodedata
+import nltk
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+from nltk import pos_tag
+from nltk.tag import HunposTagger
+ht = HunposTagger('en_wsj.model')
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
@@ -94,7 +100,8 @@ class MyDiscord(discord.Client):
                 '$ipa ' : self.handle_ipa,
                 '$translate ' : self.handle_translation,
                 '$help' : self.handle_help,
-                '$syllabify ' : self.handle_syllabification
+                '$syllabify ' : self.handle_syllabification,
+                '$tree ' : self.handle_syntax_tree
             }
             for command, handler in commands_dict.items(): # Command is key; handler is value
                 if message.content.startswith(command):
@@ -271,7 +278,77 @@ class MyDiscord(discord.Client):
                     reply += f'     Coda: none\n'
 
         await message.channel.send(reply)
-        
+    
+    async def handle_syntax_tree(self, message):
+        try:
+            # nltk.download()
+
+            words = re.sub(r'[^a-zA-Z\s]', '', message.content[len('$tree '):])  # Modify to keep hyphens
+
+            # Extract nouns, verbs, and prepositions from WordNet
+            def get_words(pos_tag):
+                return list(set(word for synset in wordnet.all_synsets(pos_tag) for word in synset.lemma_names()))
+            
+            nouns = get_words(wordnet.NOUN)
+            verbs = get_words(wordnet.VERB)
+            
+            prepositions = ['on', 'in', 'at', 'by', 'with', 'about', 'under', 'over', 'through']
+
+            def clean_word(word):
+                """ Clean the word by removing problematic characters. """
+                return word.replace('-', '_').replace("'", "")  # Replace hyphens with underscores and remove apostrophes
+
+            # Example CFG with dynamically added words
+            nouns_str = " | ".join([f"'{clean_word(noun)}'" for noun in nouns])  
+            verbs_str = " | ".join([f"'{clean_word(verb)}'" for verb in verbs])  
+            prepositions_str = " | ".join([f"'{clean_word(p)}'" for p in prepositions])
+
+            grammar = nltk.CFG.fromstring(f"""
+                S -> NP VP
+                NP -> Det N
+                VP -> V PP
+                PP -> P NP
+                Det -> 'the' | 'a'
+                N -> {nouns_str}
+                V -> {verbs_str}
+                P -> {prepositions_str}
+            """)
+
+            # print(verbs_str)
+
+            # Tokenize the sentence
+
+            # https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
+            wordnet_lemmatizer = WordNetLemmatizer()
+            tokens = nltk.word_tokenize(words)
+            tagged_tokens = nltk.pos_tag(tokens)
+            lemmatized_tokens = []
+            for token in tagged_tokens:
+                lemmatized_token = token[0]
+                print(f'this tokens label is: {token[1]}')
+                if (token[1].startswith('N')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'n')
+                elif (token[1].startswith('V')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'v')
+                elif (token[1].startswith('J')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'a')
+                elif (token[1].startswith('R') and token[1] != 'RP'):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0],'r')
+                print(lemmatized_token)
+                lemmatized_tokens.append(lemmatized_token)
+                
+            reply = ''
+
+            # Parse the sentence
+            parser = nltk.ChartParser(grammar)
+            for tree in parser.parse(lemmatized_tokens):
+                parse_string = ' '.join(str(tree).split()) 
+                reply += parse_string
+            
+            await message.channel.send(reply)
+        except:
+            await message.channel.send('Sorry! An error occurred.')
+
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
 
