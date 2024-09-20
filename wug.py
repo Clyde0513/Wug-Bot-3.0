@@ -20,6 +20,8 @@ from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import StanfordTagger
 from nltk.tokenize import RegexpTokenizer
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
@@ -420,6 +422,16 @@ class MyDiscord(discord.Client):
             # Parse the sentence
             parser = nltk.ChartParser(grammar) # issue: there are no trees being generated?
             for tree in parser.parse(filtered_tokens):
+                fig = plt.figure()
+                nltk.tree.Tree.fromstring(str(tree)).draw()
+                buffer = BytesIO()
+                plt.safefig(buffer, format='png')
+                buffer.seek(0)
+                file = discord.File(buffer, filename='syntax_tree.png')
+                await message.channel.send(file=file)
+                plt.clf()
+                plt.close(fig)
+                
                 parse_string = ' '.join(str(tree).split()) 
                 reply += parse_string
                #  print(f'tokens: {parse_string}')
@@ -428,6 +440,7 @@ class MyDiscord(discord.Client):
 
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
+            print(f"Error details: {str(e)}")
 
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
