@@ -18,9 +18,8 @@ import unicodedata
 import nltk
 from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
-from nltk import pos_tag
-from nltk.tag import HunposTagger
-ht = HunposTagger('en_wsj.model')
+from nltk import StanfordTagger
+from nltk.tokenize import RegexpTokenizer
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
@@ -36,7 +35,6 @@ available_packages = argostranslate.package.get_available_packages()
 package_dict = {
     (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
 }
-
 
 for from_code in codes:
     if from_code in processed:
@@ -281,9 +279,9 @@ class MyDiscord(discord.Client):
     
     async def handle_syntax_tree(self, message):
         try:
-            # nltk.download()
-
-            words = re.sub(r'[^a-zA-Z\s]', '', message.content[len('$tree '):])  # Modify to keep hyphens
+            # Replace contractions
+            prompt = message.content[len('$tree '):].replace("'", '')
+            words = re.sub(r'[^a-zA-Z\s]', '', prompt)  # Modify to keep hyphens
 
             # Extract nouns, verbs, and prepositions from WordNet
             def get_words(pos_tag):
@@ -291,8 +289,35 @@ class MyDiscord(discord.Client):
             
             nouns = get_words(wordnet.NOUN)
             verbs = get_words(wordnet.VERB)
-            
-            prepositions = ['on', 'in', 'at', 'by', 'with', 'about', 'under', 'over', 'through']
+            adjectives = get_words(wordnet.ADJ)
+            adverbs = get_words(wordnet.ADV)
+
+            prepositions = [
+                "about", "above", "across", "after", "against", "along", "among", "around", "at", 
+                "before", "behind", "below", "beneath", "beside", "between", "beyond", "by", 
+                "down", "during", "except", "for", "from", "in", "inside", "into", "near", "of", 
+                "off", "on", "out", "outside", "over", "past", "since", "through", "throughout", 
+                "to", "toward", "under", "underneath", "until", "up", "upon", "with", "within", 
+                "without"
+            ]
+
+            # https://www.vedantu.com/english/auxiliaries-and-modal-verbs#:~:text=The%20modal%20auxiliary%20words%20are,to%2C%20used%20to%2C%20etc.
+            modals = [
+                "can", "could", "may", "might", "must", "shall", "should", "will", "would"
+            ]
+
+            auxiliaries = [
+                "have", "be", "been"
+            ]
+
+            # Replace possessives later with their formal representations. Forget about D' for now
+            determiners = [
+                "the", "a", "this", "that", "his", "her", "their", "its", "my", "your"
+            ]
+
+            complementizers = [
+                "that", "if", "whether", "for", ""
+            ]
 
             def clean_word(word):
                 """ Clean the word by removing problematic characters. """
@@ -301,31 +326,56 @@ class MyDiscord(discord.Client):
             # Example CFG with dynamically added words
             nouns_str = " | ".join([f"'{clean_word(noun)}'" for noun in nouns])  
             verbs_str = " | ".join([f"'{clean_word(verb)}'" for verb in verbs])  
-            prepositions_str = " | ".join([f"'{clean_word(p)}'" for p in prepositions])
+            adjectives_str = " | ".join([f"'{clean_word(adjective)}'" for adjective in adjectives])  
+            adverbs_str = " | ".join([f"'{clean_word(adverb)}'" for adverb in adverbs])  
+            prepositions_str = " | ".join([f"'{preposition}'" for preposition in prepositions])
+            tense_str = "'+PAST' | '-PAST' | 'to' | " + " | ".join([f"'{modal}'" for modal in modals])
+           #  print(f'tense_str: {tense_str}') # why is it not printing...
+            determiners_str = " | ".join([f"'{determiner}'" for determiner in determiners])
+            auxiliaries_str = " | ".join([f"'{auxiliary}'" for auxiliary in auxiliaries])
+            complementizers_str = " | ".join([f"'{complementizer}'" for complementizer in complementizers])
 
+            # I cannot add complementizers right now, since it doesn't seem to even parse unless the input can get a root node?
+
+            # no support for negation yet or other features, so no need to replace
             grammar = nltk.CFG.fromstring(f"""
-                S -> NP VP
-                NP -> Det N
-                VP -> V PP
-                PP -> P NP
-                Det -> 'the' | 'a'
+                TP -> DP TBar
+                TBar -> T VP
+                AuxP -> Aux VP
+                VP -> V CP
+                VP -> V DP
+                VP -> VP PP
+                VP -> VP AdvP
+                VP -> V
+                DP -> D NP
+                NP -> AP NP
+                NP -> NP PP
+                NP -> N
+                PP -> P DP
+                AP -> A
+                AdvP -> Adv                
                 N -> {nouns_str}
                 V -> {verbs_str}
                 P -> {prepositions_str}
+                T -> {tense_str}
+                D  -> {determiners_str}
+                A -> {adjectives_str}
+                Adv -> {adverbs_str}
+                Aux -> {auxiliaries_str}
             """)
 
             # print(verbs_str)
 
             # Tokenize the sentence
+            tokenizer = RegexpTokenizer('(?u)\W+|\$[\d\.]+|\S+')
 
             # https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
             wordnet_lemmatizer = WordNetLemmatizer()
-            tokens = nltk.word_tokenize(words)
+            tokens = tokenizer.tokenize(words)
             tagged_tokens = nltk.pos_tag(tokens)
             lemmatized_tokens = []
             for token in tagged_tokens:
                 lemmatized_token = token[0]
-                print(f'this tokens label is: {token[1]}')
                 if (token[1].startswith('N')):
                     lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'n')
                 elif (token[1].startswith('V')):
@@ -334,20 +384,32 @@ class MyDiscord(discord.Client):
                     lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'a')
                 elif (token[1].startswith('R') and token[1] != 'RP'):
                     lemmatized_token = wordnet_lemmatizer.lemmatize(token[0],'r')
-                print(lemmatized_token)
+                if not any (c.isspace() for c in lemmatized_token):
+                    print(lemmatized_token)
+                    print(f'this tokens label is: {token[1]}\n')
+                if (token[1].startswith('V')):
+                    if (token[1] == 'VBD'):
+                        lemmatized_tokens.append('+PAST')
+                    else:
+                        lemmatized_tokens.append('-PAST')
                 lemmatized_tokens.append(lemmatized_token)
+
+            filtered_tokens = [t for t in lemmatized_tokens if not any(c.isspace() for c in t)]
+           #  print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
                 
             reply = ''
 
             # Parse the sentence
-            parser = nltk.ChartParser(grammar)
-            for tree in parser.parse(lemmatized_tokens):
+            parser = nltk.ChartParser(grammar) # issue: there are no trees being generated?
+            for tree in parser.parse(filtered_tokens):
                 parse_string = ' '.join(str(tree).split()) 
                 reply += parse_string
+               #  print(f'tokens: {parse_string}')
             
             await message.channel.send(reply)
-        except:
-            await message.channel.send('Sorry! An error occurred.')
+
+        except Exception as e:
+            await message.channel.send(f'Sorry! An error occurred: {e}')
 
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
