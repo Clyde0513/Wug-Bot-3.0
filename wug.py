@@ -294,6 +294,8 @@ class MyDiscord(discord.Client):
             await message.channel.send(f'Sorry! An error occurred: {e}')
         
     
+    
+    
     async def handle_syntax_tree(self, message):
         # You only have to download these once
         nltk.download('wordnet') 
@@ -421,6 +423,27 @@ class MyDiscord(discord.Client):
 
             # Parse the sentence
             parser = nltk.ChartParser(grammar) # issue: there are no trees being generated?
+            trees = list(parser.parse(filtered_tokens))
+            
+            def tree_to_ascii_art(tree):
+                return tree.__str__()
+            
+            if not trees:
+                await message.channel.send("Sorry, can't parse this sentence with current grammar")
+                
+            for i, tree in enumerate(trees, 1):
+            # Convert the tree to ASCII art
+                ascii_tree = tree_to_ascii_art(tree)
+                
+                # Split the ASCII tree into chunks if it's too long
+                max_message_length = 2000  # Discord's message length limit
+                tree_chunks = [ascii_tree[i:i+max_message_length] for i in range(0, len(ascii_tree), max_message_length)]
+                
+                # Send the ASCII tree as one or more messages
+                await message.channel.send(f"Parse Tree {i}:")
+                for chunk in tree_chunks:
+                    await message.channel.send(f"```\n{chunk}\n```")
+                
             for tree in parser.parse(filtered_tokens):
                 fig = plt.figure()
                 nltk.tree.Tree.fromstring(str(tree)).draw()
@@ -440,7 +463,6 @@ class MyDiscord(discord.Client):
 
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
-            print(f"Error details: {str(e)}")
 
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
