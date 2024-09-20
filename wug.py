@@ -278,6 +278,9 @@ class MyDiscord(discord.Client):
         await message.channel.send(reply)
     
     async def handle_syntax_tree(self, message):
+        # You only have to download these once
+        nltk.download('wordnet') 
+        nltk.download('averaged_perceptron_tagger_eng')
         try:
             # Replace contractions
             prompt = message.content[len('$tree '):].replace("'", '')
@@ -298,7 +301,7 @@ class MyDiscord(discord.Client):
                 "down", "during", "except", "for", "from", "in", "inside", "into", "near", "of", 
                 "off", "on", "out", "outside", "over", "past", "since", "through", "throughout", 
                 "to", "toward", "under", "underneath", "until", "up", "upon", "with", "within", 
-                "without"
+                "without", "to"
             ]
 
             # https://www.vedantu.com/english/auxiliaries-and-modal-verbs#:~:text=The%20modal%20auxiliary%20words%20are,to%2C%20used%20to%2C%20etc.
