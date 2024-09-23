@@ -20,7 +20,9 @@ from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import StanfordTagger
 from nltk.tokenize import RegexpTokenizer
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.use("TkAgg")
 from io import BytesIO
 
 # api_instance = argostranslate.apis.LibreTranslateAPI()
@@ -157,7 +159,7 @@ class MyDiscord(discord.Client):
                 return
             else:
                 translatedText = argostranslate.translate.translate(text_to_translate,from_code,to_code)
-                await message.channel.send(f'Translatiosn: {translatedText}')
+                await message.channel.send(f'Translation: {translatedText}')
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
 
@@ -298,11 +300,11 @@ class MyDiscord(discord.Client):
     
     async def handle_syntax_tree(self, message):
         # You only have to download these once
-        nltk.download('wordnet') 
-        nltk.download('averaged_perceptron_tagger_eng')
+        # nltk.download('wordnet') 
+        # nltk.download('averaged_perceptron_tagger_eng')
         try:
             # Replace contractions
-            prompt = message.content[len('$tree '):].replace("'", '')
+            prompt = message.content[len('$tree '):].replace("'", '').lower()
             words = re.sub(r'[^a-zA-Z\s]', '', prompt)  # Modify to keep hyphens
 
             # Extract nouns, verbs, and prepositions from WordNet
@@ -329,16 +331,24 @@ class MyDiscord(discord.Client):
             ]
 
             auxiliaries = [
-                "have", "be", "been"
+                "have", "be", "been", "am", "are", "is"
             ]
 
             # Replace possessives later with their formal representations. Forget about D' for now
             determiners = [
-                "the", "a", "this", "that", "his", "her", "their", "its", "my", "your"
+                "the", "a", "an", "this", "that", "his", "her", "their", "its", "my", "your"
+            ]
+
+            DP_subjs = [
+                "i", "you", "he", "she", "it", "we", "they", "this", "that"
+            ]
+
+            DP_objs = [
+                "me", "you", "him", "her", "it", "us", "them", "this", "that"
             ]
 
             complementizers = [
-                "that", "if", "whether", "for", ""
+                "that", "if", "whether", "for", '∅'
             ]
 
             def clean_word(word):
@@ -354,6 +364,9 @@ class MyDiscord(discord.Client):
             tense_str = "'+PAST' | '-PAST' | 'to' | " + " | ".join([f"'{modal}'" for modal in modals])
            #  print(f'tense_str: {tense_str}') # why is it not printing...
             determiners_str = " | ".join([f"'{determiner}'" for determiner in determiners])
+            # workaround for now, should probably find a way to separate the subj and obj positions
+            misc_DPs_str = " | ".join([f"'{DP}'" for DP in (DP_subjs + DP_objs)])
+            print(misc_DPs_str)
             auxiliaries_str = " | ".join([f"'{auxiliary}'" for auxiliary in auxiliaries])
             complementizers_str = " | ".join([f"'{complementizer}'" for complementizer in complementizers])
 
@@ -361,11 +374,14 @@ class MyDiscord(discord.Client):
 
             # no support for negation yet or other features, so no need to replace
             grammar = nltk.CFG.fromstring(f"""
+                CP -> C TP
                 TP -> DP TBar
+                TBar -> T AuxP
                 TBar -> T VP
                 AuxP -> Aux VP
                 VP -> V CP
                 VP -> V DP
+                VP -> V AP
                 VP -> VP PP
                 VP -> VP AdvP
                 VP -> V
@@ -375,7 +391,10 @@ class MyDiscord(discord.Client):
                 NP -> N
                 PP -> P DP
                 AP -> A
-                AdvP -> Adv                
+                AdvP -> Adv 
+                DP -> _D_  
+                C -> {complementizers_str}
+                _D_ -> {misc_DPs_str}
                 N -> {nouns_str}
                 V -> {verbs_str}
                 P -> {prepositions_str}
@@ -409,15 +428,20 @@ class MyDiscord(discord.Client):
                 if not any (c.isspace() for c in lemmatized_token):
                     print(lemmatized_token)
                     print(f'this tokens label is: {token[1]}\n')
-                if (token[1].startswith('V')):
-                    if (token[1] == 'VBD'):
-                        lemmatized_tokens.append('+PAST')
-                    else:
-                        lemmatized_tokens.append('-PAST')
+                    # do not consider auxiliaries
+                    if (token[1].startswith('V')):
+                        # it might be calculating the index wrong due to a typo
+                        # tagged_tokens.index(token) > 0 and not tagged_tokens[tagged_tokens.index(token)-1][1].startswith('V')):
+                        if (token[1] == 'VBD'):
+                            lemmatized_tokens.append('+PAST') # error here
+                        else:
+                            lemmatized_tokens.append('-PAST')
+                           # print(f'added after: {token[0]}')
                 lemmatized_tokens.append(lemmatized_token)
+            lemmatized_tokens.insert(0, '∅')
 
             filtered_tokens = [t for t in lemmatized_tokens if not any(c.isspace() for c in t)]
-           #  print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
+            print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
                 
             reply = ''
 
@@ -432,23 +456,27 @@ class MyDiscord(discord.Client):
                 await message.channel.send("Sorry, can't parse this sentence with current grammar")
                 
             for i, tree in enumerate(trees, 1):
+            # Convert the tre to ASCII art
+                ascii = nltk.tree.TreePrettyPrinter(tree).text()
+                # print(var)
+
             # Convert the tree to ASCII art
                 ascii_tree = tree_to_ascii_art(tree)
                 
                 # Split the ASCII tree into chunks if it's too long
-                max_message_length = 2000  # Discord's message length limit
-                tree_chunks = [ascii_tree[i:i+max_message_length] for i in range(0, len(ascii_tree), max_message_length)]
+                # max_message_length = 2000  # Discord's message length limit
+                # tree_chunks = [ascii_tree[i:i+max_message_length] for i in range(0, len(ascii_tree), max_message_length)]
                 
                 # Send the ASCII tree as one or more messages
                 await message.channel.send(f"Parse Tree {i}:")
-                for chunk in tree_chunks:
-                    await message.channel.send(f"```\n{chunk}\n```")
+                # for chunk in tree_chunks:
+                await message.channel.send(f"```\n{ascii}\n```")
                 
             for tree in parser.parse(filtered_tokens):
                 fig = plt.figure()
                 nltk.tree.Tree.fromstring(str(tree)).draw()
                 buffer = BytesIO()
-                plt.safefig(buffer, format='png')
+                plt.savefig(buffer, format='png')
                 buffer.seek(0)
                 file = discord.File(buffer, filename='syntax_tree.png')
                 await message.channel.send(file=file)
