@@ -104,7 +104,8 @@ class MyDiscord(discord.Client):
                     '$translate ' : self.handle_translation,
                     '$help' : self.handle_help,
                     '$syllabify ' : self.handle_syllabification,
-                    '$tree ' : self.handle_syntax_tree
+                    '$tree ' : self.handle_syntax_tree,
+                    '$logic ' : self.handle_logic
                 }
                 for command, handler in commands_dict.items(): # Command is key; handler is value
                     if message.content.startswith(command):
@@ -491,6 +492,38 @@ class MyDiscord(discord.Client):
 
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
+            
+    # Translate sentences into propositonal/predicate logic
+    async def handle_logic(self, message):
+        try:
+            text = message.content[len('$logic '):].strip()
+            tokens = nltk.word_tokenize(text)
+            pos_tags = nltk.pos_tag(tokens)
+            
+            # Simple mapping of POS tags to logic symbols
+            logic_mapping = {
+                'NN': 'N',  # Noun
+                'VB': 'V',  # Verb
+                'JJ': 'A',  # Adjective
+                'RB': 'Adv',  # Adverb
+                'DT': 'D',  # Determiner
+                'IN': 'P',  # Preposition
+                'PRP': 'Pron',  # Pronoun
+                'CC': 'Conj',  # Conjunction
+                'TO': 'Inf',  # Infinitive marker
+                'MD': 'Mod'  # Modal
+            }
+            
+            logic_representation = []
+            for word, pos in pos_tags:
+                logic_symbol = logic_mapping.get(pos, pos)
+                logic_representation.append(f"{logic_symbol}({word})")
+            
+            logic_sentence = ' ∧ '.join(logic_representation)
+            await message.channel.send(f"Logic Representation: {logic_sentence}")
+        
+        except Exception as e:
+            await message.channel.send(f'Sorry! An error occurred: {e}')
 
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
@@ -523,4 +556,4 @@ client.run(DISCORD_TOKEN, log_handler=handler, log_level=logging.DEBUG)
                         # ipa_translation = ipa.convert(text_to_translate)
                         #lst = language.tokenize(text_to_translate)
                         
-                                #language = read_tokenizer('eng') 
+                                #language = read_tokenizer('eng')
