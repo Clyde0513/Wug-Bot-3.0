@@ -1,9 +1,9 @@
+discord.py
 python-dotenv
-eng_to_ipa
+eng-to-ipa
 requests
-transphone
 gruut
 argostranslate
-discord
-logging
-requests
+nltk
+regex
+matplotlib
