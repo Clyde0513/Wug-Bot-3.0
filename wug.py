@@ -53,20 +53,6 @@ for from_code in codes:
             processed.add(from_code)
             print((from_code, to_code))
 
-# for from_code in codes:
-#     for to_code in codes:
-#         if from_code != to_code and not (from_code, to_code) in mappings:
-#             # Fetch the package from the dictionary
-#             package_to_install = package_dict.get((from_code, to_code))
-#             if package_to_install is None:
-#                 continue
-#             # Install the package
-#             argostranslate.package.install_from_path(package_to_install.download()) 
-
-#             # Note down the installed language mapping 
-#             mappings.add((from_code, to_code))   
-#             print((from_code, to_code))
-
 ###------------------------------TOKEN LOADERS + Error Debugging------------------------------###
 load_dotenv()
 DISCORD_TOKEN = os.getenv('TOKEN')
@@ -523,6 +509,11 @@ class MyDiscord(discord.Client):
             logic_mapping = {
                 'NN': 'N',  # Noun
                 'VB': 'V',  # Verb
+                'VBD': 'V',  # Past Tense Verb
+                'VBG': 'V',  # Gerund Verb
+                'VBN': 'V',  # Past Participle Verb
+                'VBP': 'V',  # Non-3rd Person Singular Present Verb
+                'VBZ': 'V',  # 3rd Person Singular Present Verb
                 'JJ': 'A',  # Adjective
                 'RB': 'Adv',  # Adverb
                 'DT': 'D',  # Determiner
@@ -530,7 +521,8 @@ class MyDiscord(discord.Client):
                 'PRP': 'Pron',  # Pronoun
                 'CC': 'Conj',  # Conjunction
                 'TO': 'Inf',  # Infinitive marker
-                'MD': 'Mod'  # Modal
+                'MD': 'Mod',  # Modal
+                'NEG': 'Neg'  # Negation
             }
             
             logic_representation = []
@@ -546,7 +538,7 @@ class MyDiscord(discord.Client):
             
     # Do a morphological analysis of a word or a sentence in a language of choice (e.g., English)
     # Install spacy but after installing spacy, do pip install numpy<2.0.0 
-    # BUT this model is trash so we are scratchign it for now
+    # BUT this model is trash in terms of accuracy so we are scratching it for now
     async def handle_morphology(self, message):
         def get_wordnet_pos(treebank_tag):
             if treebank_tag.startswith('J'):
