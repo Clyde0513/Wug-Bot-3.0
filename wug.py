@@ -70,9 +70,14 @@ for from_code in codes:
 ###------------------------------TOKEN LOADERS + Error Debugging------------------------------###
 load_dotenv()
 DISCORD_TOKEN = os.getenv('TOKEN')
-GUILD_ID = os.getenv("GUILD")
-ALLOWED_CHANNELS = os.getenv("ALLOWED_CHANNELS").strip('[]').split(',')
+GUILD_ID = [int(guild.strip()) for guild in os.getenv('GUILD').split(',')]
+ALLOWED_CHANNELS = [int(channel.strip()) for channel in os.getenv('ALLOWED_CHANNELS').split(',')]
+OTHER_GUILD_ID = int(os.getenv("OTHER_GUILD_ID"))
+OTHER_CHANNEL_ID = int(os.getenv("OTHER_CHANNEL_ID"))
 
+# Print the lists for verification
+print("GUILD_ID:", GUILD_ID)
+print("ALLOWED_CHANNELS:", ALLOWED_CHANNELS)
 
 # DICTIONARY_TOKEN = os.getenv('DICTIONARY')
 # THESAURUS_TOKEN = os.getenv('THESAURUS')
@@ -83,21 +88,33 @@ handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'
 class MyDiscord(discord.Client):
     def __init__(self, intents):
         super().__init__(intents=intents)
+        self.other_guild_id = int(os.getenv("OTHER_GUILD_ID"))
+        self.other_channel_id = int(os.getenv("OTHER_CHANNEL_ID"))
         
       
     async def on_ready(self):
         print(f'Logged in as {self.user}')
-        # guild = self.get_guild(int(GUILD_ID))
-        # if guild:
-        #     await guild.create_role(name="Muted")
+        # Access the other server's channel
+        other_guild = self.get_guild(self.other_guild_id)
+        if other_guild:
+            other_channel = other_guild.get_channel(self.other_channel_id)
+            if other_channel:
+                print("WugBot is now online in UCLA Ling server!")
+            else:
+                print("Channel not found in the other server.")
+        else:
+            print("Guild not found.")
 
     async def on_message(self, message, *args, **kwargs):
-        allowed_channels = [int(channel.strip()) for channel in ALLOWED_CHANNELS]
+        
+        allowed_channels = ALLOWED_CHANNELS
+        allowed_guild = GUILD_ID
+        #print(allowed_channels, allowed_guild)
         try:
             if message.author.bot or message.author == self.user:
                 return
 
-            if message.channel.id in allowed_channels:
+            if message.channel.id in allowed_channels and message.guild.id in allowed_guild:
                 commands_dict = {
                     '$wug' : self.handle_wug,
                     '$ipa ' : self.handle_ipa,
@@ -105,7 +122,8 @@ class MyDiscord(discord.Client):
                     '$help' : self.handle_help,
                     '$syllabify ' : self.handle_syllabification,
                     '$tree ' : self.handle_syntax_tree,
-                    '$logic ' : self.handle_logic
+                    '$logic ' : self.handle_logic,
+                    '$morphology ' : self.handle_morphology
                 }
                 for command, handler in commands_dict.items(): # Command is key; handler is value
                     if message.content.startswith(command):
@@ -433,10 +451,11 @@ class MyDiscord(discord.Client):
                     if (token[1].startswith('V')):
                         # it might be calculating the index wrong due to a typo
                         # tagged_tokens.index(token) > 0 and not tagged_tokens[tagged_tokens.index(token)-1][1].startswith('V')):
-                        if (token[1] == 'VBD'):
-                            lemmatized_tokens.append('+PAST') # error here
+                        if token[1] in ['VBD', 'VBN']:
+                            lemmatized_tokens.append('+PAST')
                         else:
                             lemmatized_tokens.append('-PAST')
+                         #   lemmatized_tokens.append('-PAST')
                            # print(f'added after: {token[0]}')
                 lemmatized_tokens.append(lemmatized_token)
             lemmatized_tokens.insert(0, '∅')
@@ -521,39 +540,160 @@ class MyDiscord(discord.Client):
             
             logic_sentence = ' ∧ '.join(logic_representation)
             await message.channel.send(f"Logic Representation: {logic_sentence}")
+            
+        except Exception as e:
+            await message.channel.send(f'Sorry! An error occurred: {e}')
+            
+    # Do a morphological analysis of a word or a sentence in a language of choice (e.g., English)
+    # Install spacy but after installing spacy, do pip install numpy<2.0.0 
+    # BUT this model is trash so we are scratchign it for now
+    async def handle_morphology(self, message):
+        def get_wordnet_pos(treebank_tag):
+            if treebank_tag.startswith('J'):
+                return wordnet.ADJ
+            elif treebank_tag.startswith('V'):
+                return wordnet.VERB
+            elif treebank_tag.startswith('N'):
+                return wordnet.NOUN
+            elif treebank_tag.startswith('R'):
+                return wordnet.ADV
+            else:
+                return wordnet.NOUN
+        try:
+            text = message.content[len('$morphology '):].strip()
+            tokens = nltk.word_tokenize(text)
+            pos_tags = nltk.pos_tag(tokens)
+            
+            morphemes = []
+            for word, pos in pos_tags:
+                # Simple heuristic-based morphological analysis
+                root = word
+                suffix = ''
+                prefix = ''
+                infixes = []
+                case = "nominative" # Default case
+                
+
+                # Example suffixes
+                suffixes = ['ing', 'ed', 's', 'es', 'ly', 'er', 'est', 'able', 'ible', 'ness', 'ment', 'ful', 'less', 'ous', 'tion', 'ation', 'ition', 'al', 'ial', 'ic', 'ical', 'y', 'ty', 'ive', 'ative', 'itive', 'en', 'ify', 'ize', 'ise', 'ward', 'wards', 'wise']
+                prefixes = ['un', 're', 'in', 'im', 'il', 'ir', 'dis', 'en', 'em', 'non', 'in', 'im', 'over', 'mis', 'sub', 'pre', 'inter', 'fore', 'de', 'trans', 'super', 'semi', 'anti', 'mid', 'under']
+                dative_suffixes = ['to', 'for']
+                accusative_suffixes = ['me', 'us', 'him', 'her', 'it', 'them']
+                genitive_suffixes = ['my', 'mine', 'our', 'ours', 'your', 'yours', 'his', 'her', 'hers', 'its', 'their', 'theirs']
+                reflexive_suffixes = ['self', 'selves']
+                possessive_suffixes = ['s', 's\'']
+                plural_suffixes = ['s', 'es']
+                comparative_suffixes = ['er', 'est']
+                superlative_suffixes = ['est']
+                adverbial_suffixes = ['ly']
+                nominal_suffixes = ['ity', 'ness', 'hood', 'ship', 'dom', 'ism', 'ist', 'ment', 'tion', 'sion', 'ance', 'ence', 'age', 'ery', 'ry', 'al', 'ial', 'ion', 'ation', 'ition', 'ity', 'ty', 'y', 'cy', 'acy', 'ance', 'ence', 'dom', 'ship', 'hood', 'ism', 'ist', 'ment', 'ness', 'ship', 'sion', 'tion', 'ity', 'ty', 'y', 'al', 'ial', 'ic', 'ical', 'ous', 'eous', 'ious', 'ive', 'ative', 'itive', 'en', 'ify', 'ize', 'ise', 'ward', 'wards', 'wise']
+                verb_suffixes = ['s', 'es', 'ed', 'ing', 'en', 'ize', 'ise', 'ify', 'ate', 'ise', 'ize', 'en', 'ify', 'ize', 'ise']
+                
+                # Check for suffixes
+                for suf in suffixes:
+                    if word.endswith(suf):
+                        root = word[:-len(suf)]
+                        suffix = suf
+                        break
+
+                # Check for prefixes
+                for pre in prefixes:
+                    if word.startswith(pre):
+                        root = root[len(pre):]
+                        prefix = pre
+                        break
+
+                # Example infix handling (not common in English, but for demonstration)
+                if 'infix' in word:
+                    parts = word.split('infix')
+                    if len(parts) == 2:
+                        infixes.append('infix')
+                        root = parts[0] + parts[1]
+                
+                for dative_suf in dative_suffixes:
+                    if word.endswith(dative_suf):
+                        case = "dative"
+                        break
+                
+                for accusative_suf in accusative_suffixes:
+                    if word.endswith(accusative_suf):
+                        case = "accusative"
+                        break
+                    
+                for genitive_suf in genitive_suffixes:
+                    if word.endswith(genitive_suf):
+                        case = "genitive"
+                        break
+                
+                for reflexive_suf in reflexive_suffixes:
+                    if word.endswith(reflexive_suf):
+                        case = "reflexive"
+                        break
+                    
+                for possessive_suf in possessive_suffixes:
+                    if word.endswith(possessive_suf):
+                        case = "possessive"
+                        break
+                        
+                for plural_suf in plural_suffixes:
+                    if word.endswith(plural_suf):
+                        case = "plural"
+                        break
+                    
+                for comparative_suf in comparative_suffixes:
+                    if word.endswith(comparative_suf):
+                        case = "comparative"
+                        break
+                
+                for superlative_suf in superlative_suffixes:
+                    if word.endswith(superlative_suf):
+                        case = "superlative"
+                        break
+                    
+                for adverbial_suf in adverbial_suffixes:
+                    if word.endswith(adverbial_suf):
+                        case = "adverbial"
+                        break
+                    
+                for nominal_suf in nominal_suffixes:
+                    if word.endswith(nominal_suf):
+                        case = "nominal"
+                        break
+                    
+                for verb_suf in verb_suffixes:
+                    if word.endswith(verb_suf):
+                        case = "verb"
+                        break
+                
+                # Lemmatize the root word
+                lemma = nltk.WordNetLemmatizer().lemmatize(root, pos=get_wordnet_pos(pos))
+                if lemma != root:
+                    root = f"{root} ({lemma})"
+                morphemes.append((root, prefix, infixes, suffix, case))
+            
+            # Prepare the response
+            response = "Morphological Analysis:\n"
+            for root, prefix, infixes, suffix, case in morphemes:
+                response += f"Root: {root}\n"
+                response += f"Prefix: {prefix if prefix else 'None'}\n"
+                response += f"Infixes: {', '.join(infixes) if infixes else 'None'}\n"
+                response += f"Suffix: {suffix if suffix else 'None'}\n"
+                response += f"Case: {case}\n"
+                response += "-------------------------\n"
+            
+            await message.channel.send(response)
         
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
+            
+        
 
     async def handle_help(self,message):
         await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
 
 intents = discord.Intents.default()
+intents.messages = True
 intents.message_content = True
 
 client = MyDiscord(intents=intents)
 client.run(DISCORD_TOKEN, log_handler=handler, log_level=logging.DEBUG)
-
-###-------------------------------------------------------Into the Abyss---------------------------------------------------###
-            # if message.content.startswith('$list '):
-            #     text_to_translate = message.content[len('$list '):].strip()
-            #     ipa_translation = ipa.ipa_list(text_to_translate)
-            #     unzipped_list = [item[0] for item in ipa_translation]
-            #     await message.channel.send(f'IPA transcriptions of each word: {unzipped_list}')
-            #     await message.add_reaction("👍")
-            
-             # url = f"https://dictionaryapi.com/api/v3/references/learners/json/{text_to_translate}?key={LEARNERS_TOKEN}"
-                # definitions_response = requests.get(url)
-                # # print("Response Status Code:", definitions_response.status_code)
-                # # print("Response Content:", definitions_response.text)
-                # definitions_data = definitions_response.json()
-                # for element in definitions_data:
-                #         if 'hwi' in element:
-                #             hwi_element = element
-                #             break;
-                
-                   # ipa_transcription = hwi_element['hwi']['prs'][0]['ipa']
-                        # ipa_translation = ipa.convert(text_to_translate)
-                        #lst = language.tokenize(text_to_translate)
-                        
-                                #language = read_tokenizer('eng')
