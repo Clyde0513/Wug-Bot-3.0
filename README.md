@@ -4,6 +4,10 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
 
 ## Features
 
+- **Syntactic Trees**: Generates syntactic trees for sentences.
+- **Translation**: Translates text from one language to another.
+- **Syllabification**: Breaks words into syllables.
+- **IPA Format**: Converts text to the International Phonetic Alphabet (IPA) format.
 - **Morphological Analysis**: Analyzes the morphology of words in a given sentence, identifying roots, prefixes, suffixes, and grammatical cases.
 - **Logical Representation**: Converts sentences into logical representations.
 
@@ -39,6 +43,8 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
     nltk.download('punkt')
     nltk.download('averaged_perceptron_tagger')
     nltk.download('wordnet')
+    nltk.download('treebank')
+    nltk.download('universal_tagset')
     ```
 
 5. **Set up your .env file**:
@@ -59,8 +65,13 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
     ```
 
 2. **Commands**:
-    - **Morphological Analysis**: Use the command `$morphology <sentence>` to analyze the morphology of a sentence.
+    - **Morphological Analysis**: Use the command `$morphology <sentence or word>` to analyze the morphology of a sentence.
     - **Logical Representation**: Use the command `$logic <sentence>` to get the logical representation of a sentence.
+    - **Syntactic Trees**: Use the command `$syntactic_tree <sentence>` to generate a syntactic tree for a sentence.
+    - **Translation**: Use the command `$translate <from_lang> <to_lang> <text>` to translate text from one language to another.
+    - **Syllabification**: Use the command `$syllabify <word or sentences>` to break a word into syllables.
+    - **IPA Format**: Use the command `$ipa <sentence or word>` to convert the text to the International Phonetic Alphabet (IPA) format.
+
 
 ## Example
 
