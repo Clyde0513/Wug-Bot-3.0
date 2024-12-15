@@ -1,6 +1,6 @@
 # Wug Bot 3.0
 
-Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, including morphological analysis and logical representation of sentences. This bot leverages the Natural Language Toolkit (NLTK) and WordNet for its linguistic capabilities.
+Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, including morphological analysis and logical representation of sentences. This bot leverages the Natural Language Toolkit (NLTK) and WordNet for its linguistic capabilities, as well as the Argos Translation library to handle translations from one language to another (13 languages)
 
 ## Features
 
