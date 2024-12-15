@@ -617,7 +617,7 @@ class MyDiscord(discord.Client):
                 
                 for accusative_suf in accusative_suffixes:
                     if word.endswith(accusative_suf):
-                        case = "accusative"
+                        case = "accusative" 
                         break
                     
                 for genitive_suf in genitive_suffixes:
@@ -689,7 +689,7 @@ class MyDiscord(discord.Client):
         
 
     async def handle_help(self,message):
-        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-code] [to-code] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence.")    
+        await message.channel.send("Type '$ipa [word or sentence]' for a word/sentence to translate.\n\nType '$translate [from-lang] [to-lang] [word or sentence]' to translate between any two available languages.\n\nThese languages are currently available: Arabic (ar), Chinese (zh), English (en), French (fr), German (de), Hindi (hi), Italian (it), Japanese (ja), Polish (pl), Portuguese (pt), Turkish (tr), Russian (ru), and Spanish (es).\n\nPlease specify the two-letter code of any language used in a translation command.\n\nType '$syllabify [word or sentence]' to get a complete syllabification analysis of any word or sentence. \n\n Type '$tree [sentence]' to get a syntax tree of a sentence. \n\n Type '$logic [sentence]' to get a logical representation of a sentence. \n\n Type '$morphology [word or sentence]' to get a morphological analysis of a word or sentence.")    
 
 intents = discord.Intents.default()
 intents.messages = True
