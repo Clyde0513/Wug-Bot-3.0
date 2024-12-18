@@ -78,70 +78,54 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
 ### Morphological Analysis
 
 ```
-$morphology The quick brown fox jumps over the lazy dog.
+$morphology loved.
 
-Response:
-Morphological Analysis:
-Root: The
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: quick
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: brown
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: fox
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: jump
-Prefix: None
-Infixes: None
-Suffix: s
-Case: verb
--------------------------
-Root: 
-Prefix: over
-Infixes: None
-Suffix: er
-Case: comparative
--------------------------
-Root: the
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: laz
-Prefix: None
-Infixes: None
-Suffix: y
-Case: nominal
--------------------------
-Root: dog
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
-Root: .
-Prefix: None
-Infixes: None
-Suffix: None
-Case: nominative
--------------------------
+Word Analysis: loved
+Part of Speech: Verb
+Base Form: loved
+
+Morphological Process: 
+love → lov (e-dropping)
+Root: love
+Morphemes Found:
+Suffix: '-ed': (inflectional, past tense)
+Rule: e-dropping before -ed
+
+$morphology carries
+
+Word Analysis: carries
+Part of Speech: Verb
+Base Form: carries
+
+Morphological Process: 
+carry → carr (y to i)
+Root: carry
+Morphemes Found:
+Suffix: '-s': (inflectional, plural)
+Suffix: '-es': (inflectional, plural)
+Rule: y to i before -s
+
+$morphology heroes
+
+Word Analysis: heroes
+Part of Speech: Noun
+Base Form: heroes
+Root: hero
+Morphemes Found:
+Suffix: '-s': (inflectional, plural)
+Suffix: '-es': (inflectional, plural)
+Rule: o to oe before -s
+
+$morphology watches
+
+Word Analysis: watches
+Part of Speech: Noun
+Base Form: watches
+Root: watch
+Morphemes Found:
+Suffix: '-s': (inflectional, plural)
+Suffix: '-es': (inflectional, plural)
+Rule: ch to tch before -s
 ```
 
 ### Logic Analysis 
