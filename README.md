@@ -74,6 +74,8 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
 
 ### Morphological Analysis
 
+![Morphological Example](https://github.com/user-attachments/assets/12b0998a-b8ca-4b4b-9869-941b97bc38af)
+
 ```
 $morphology loved.
 
