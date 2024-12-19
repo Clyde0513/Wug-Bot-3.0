@@ -2,16 +2,16 @@
 
 Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, including morphological analysis and logical representation of sentences. This bot leverages the Natural Language Toolkit (NLTK) and WordNet for its linguistic capabilities, as well as the Argos Translation library to handle translations from one language to another (13 languages)
 
-## Features
+## 🌟 Key Features
 
-- **Syntactic Trees**: Generates syntactic trees for sentences.
-- **Translation**: Translates text from one language to another.
-- **Syllabification**: Breaks words into syllables.
-- **IPA Format**: Converts text to the International Phonetic Alphabet (IPA) format.
-- **Morphological Analysis**: Analyzes the morphology of words in a given sentence, identifying roots, prefixes, suffixes, and grammatical cases.
-- **Logical Representation**: Converts sentences into logical representations.
+🌳 Syntactic Trees: Visualize sentence structures
+🌍 Translation: Support for 13 languages
+✂️ Syllabification: Break down words into syllables
+🔤 IPA Conversion: Text to International Phonetic Alphabet
+📝 Morphological Analysis: Identify word components and transformations
+🧮 Logical Representation: Convert sentences to logical forms
 
-## Requirements
+## 🚀 Requirements
 
 - Python 3.6+
 - Discord.py
@@ -57,7 +57,7 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
     OTHER_CHANNEL_ID=other_channel_id
     ```
 
-## Usage
+## 💡 Usage Examples
 
 1. **Run the bot**:
     ```sh
@@ -134,10 +134,10 @@ $logic The quick brown fox jumps over the lazy dog.
 Logic Representation: D(The) ∧ A(quick) ∧ N(brown) ∧ N(fox) ∧ VBZ(jumps) ∧ P(over) ∧ D(the) ∧ A(lazy) ∧ N(dog) ∧ .(.)
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
 
-## License
+## 📝 License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
