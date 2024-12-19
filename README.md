@@ -4,12 +4,12 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
 
 ## 🌟 Key Features
 
-🌳 Syntactic Trees: Visualize sentence structures
-🌍 Translation: Support for 13 languages
-✂️ Syllabification: Break down words into syllables
-🔤 IPA Conversion: Text to International Phonetic Alphabet
-📝 Morphological Analysis: Identify word components and transformations
-🧮 Logical Representation: Convert sentences to logical forms
+# 🌳 Syntactic Trees: Visualize sentence structures
+# 🌍 Translation: Support for 13 languages
+# ✂️ Syllabification: Break down words into syllables
+# 🔤 IPA Conversion: Text to International Phonetic Alphabet
+# 📝 Morphological Analysis: Identify word components and transformations
+# 🧮 Logical Representation: Convert sentences to logical forms
 
 ## 🚀 Requirements
 
@@ -71,9 +71,6 @@ Wug Bot 3.0 is a Discord bot designed to perform various linguistic tasks, inclu
     - **Translation**: Use the command `$translate <from_lang> <to_lang> <text>` to translate text from one language to another.
     - **Syllabification**: Use the command `$syllabify <word or sentences>` to break a word into syllables.
     - **IPA Format**: Use the command `$ipa <sentence or word>` to convert the text to the International Phonetic Alphabet (IPA) format.
-
-
-## Example
 
 ### Morphological Analysis
 
