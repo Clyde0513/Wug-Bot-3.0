@@ -131,6 +131,73 @@ $logic The quick brown fox jumps over the lazy dog.
 Logic Representation: D(The) ∧ A(quick) ∧ N(brown) ∧ N(fox) ∧ VBZ(jumps) ∧ P(over) ∧ D(the) ∧ A(lazy) ∧ N(dog) ∧ .(.)
 ```
 
+### Translation 
+```
+$translate en es are you done eating or running
+
+Translation: ¿Terminaste de comer o correr?
+```
+
+### Syllabification 
+```
+$syllabify are you eating or running
+
+•••••••••••••••
+Word: are (ɑɹ)
+Syllable count: 1
+  Syllable: ɑɹ
+     Onset: none
+     Nucleus: ɑ
+     Coda: ɹ
+•••••••••••••••
+Word: you (ju)
+Syllable count: 1
+  Syllable: ju
+     Onset: j
+     Nucleus: u
+     Coda: none
+•••••••••••••••
+Word: eating (itɪŋ)
+Syllable count: 2
+  Syllable: i
+     Onset: none
+     Nucleus: i
+     Coda: none
+  Syllable: tɪŋ
+     Onset: t
+     Nucleus: ɪ
+     Coda: ŋ
+•••••••••••••••
+Word: or (ɔɹ)
+Syllable count: 1
+  Syllable: ɔɹ
+     Onset: none
+     Nucleus: ɔ
+     Coda: ɹ
+•••••••••••••••
+Word: running (ɹʌnɪŋ)
+Syllable count: 2
+  Syllable: ɹʌ
+     Onset: ɹ
+     Nucleus: ʌ
+     Coda: none
+  Syllable: nɪŋ
+     Onset: n
+     Nucleus: ɪ
+     Coda: ŋ
+```
+
+### IPA
+```
+$ipa are you eating or running
+
+IPA Translation: /ˈɑ ɹ/
+IPA Translation: /j ˈu/
+IPA Translation: /ˈi t ɪ ŋ/
+IPA Translation: /ˈɔ ɹ/
+IPA Translation: /ɹ ˈʌ n ɪ ŋ/
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
