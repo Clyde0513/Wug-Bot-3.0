@@ -20,6 +20,7 @@ from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import StanfordTagger
 from nltk.tokenize import RegexpTokenizer
+#import epitran
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use("TkAgg")
@@ -48,7 +49,7 @@ for from_code in codes:
             continue
         package_to_install = package_dict.get((from_code, to_code))
         if package_to_install is not None:
-            # argostranslate.package.install_from_path(package_to_install)
+            #argostranslate.package.install_from_path(package_to_install.download())
             mappings.add((from_code, to_code))
             processed.add(from_code)
             print((from_code, to_code))
@@ -71,7 +72,213 @@ print("ALLOWED_CHANNELS:", ALLOWED_CHANNELS)
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 ###-------------------------------------------------------------------------------------------###
 
+# app = Flask(__name__)
+# CORS(app)
+
+# @app.route('/api/command', methods=['POST'])
+# def handle_command():
+#     try:
+#         data = request.json
+#         command = data.get('command')
+#         text = data.get('text')
+#         from_lang = data.get('fromLang')
+#         to_lang = data.get('toLang')
+
+#         result = ""
+#         if command == 'ipa':
+#             # Use gruut for IPA translation
+#             for sent in sentences(text, lang="en-us"):
+#                 for word in sent:
+#                     if word.phonemes:
+#                         result += f"/{' '.join(word.phonemes)}/ "
+#         elif command == 'translate':
+#             if (from_lang, to_lang) in mappings:
+#                 result = argostranslate.translate.translate(text, from_lang, to_lang)
+#             else:
+#                 # Try intermediate translation
+#                 for code in codes:
+#                     if code == from_lang or code == to_lang:
+#                         continue
+#                     if (from_lang, code) in mappings and (code, to_lang) in mappings:
+#                         temp = argostranslate.translate.translate(text, from_lang, code)
+#                         result = argostranslate.translate.translate(temp, code, to_lang)
+#                         break
+#         elif command == 'syllabify':
+#             # Call existing syllabification logic and store result
+#             # This would need to be adapted from your existing handle_syllabification method
+#             # call the syllabification function down below
+#                         # Use helper function for syllabification
+#             result = handle_syllabification_helper(text)
+            
+#             # Define helper function outside the class
+#             async def handle_syllabification_helper(message):
+#                 # Copy the syllabification logic from MyDiscord.handle_syllabification
+#                 # but remove self references and return the result instead of sending messages
+#                 # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
+#                 vowels = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ',
+#                 'ɐ','a','ɶ','ä','ɑ','ɒ','ɚ'])
+
+#                 # Source: https://en.wikipedia.org/wiki/Diphthong
+#                 diphthongs = set(['oʊ', 'aʊ', 'aɪ', 'eɪ', 'ɔɪ'])
+
+#                 # Source: https://en.wikipedia.org/wiki/Help:IPA/English
+#                 onsetClusters = set(['p','b','t','ɾ','d','tʃ','dʒ','k','ɡ','dj','ð','f','g','h','j',
+#                 'k','l','lj','m','n','nj','ɹ','s','ʃ','v','w','z','ʒ','θ','pl','bl','kl','gl','pɹ','bɹ','tɹ','dɹ','kɹ',
+#                 'gɹ','ɡɹ','ɡ','tw','dw','gw','kw','pw','fl','sl','θl','ʃl','fɹ','θɹ','ʃɹ','sw','θw','vw','pj','bj','tj','kj','gj',
+#                 'mj','fj','vj','θj','sj','zj','hj','lj','sp','st','sk','sm','sn','sf','sθ','spl','skl','spɹ','stɹ','skw',
+#                 'spj','stj','skj','smj','snj','sfɹ'])
+
+#                 try:
+#                     def remove_diacritics(s):
+#                         # Normalize to NFD (Normalization Form D) to decompose characters
+#                         s_decomposed = unicodedata.normalize('NFD', s)
+                        
+#                         # Filter out combining diacritic marks
+#                         s_no_diacritics = ''.join(c for c in s_decomposed if not unicodedata.combining(c))
+                    
+#                         # Optionally, normalize back to NFC (Normalization Form C) if needed
+#                         return unicodedata.normalize('NFC', s_no_diacritics)
+
+#                     def find_onsets(cluster):
+#                         n = len(cluster)
+#                         lengths = []
+                
+#                         # Iterate over all possible starting points for substrings
+#                         for start in range(len(cluster)):
+#                             # Iterate over all possible ending points for substrings starting from `start`
+#                             for end in range(start + 1, n + 1):
+#                                 substring = cluster[start:end]
+#                                 if substring in onsetClusters:
+#                                     lengths.append(((end-start), start, end))
+                    
+#                         return sorted(lengths, reverse=True, key=lambda x: x[0])
+                    
+#                     cleaned_string = re.sub(r'[^a-zA-Z\s-]', '', message.content[len('$syllabify '):])
+#                     reply = ''
+#                     words = []
+#                     ipa = []
+
+#                     # Convert each word in the sentence to IPA
+#                     for sent in sentences(cleaned_string,lang="en-us"):
+#                         for word in sent:
+#                             if (word.phonemes):
+#                                 words.append(word.text)
+#                                 ipa.append(remove_diacritics(((''.join(word.phonemes)).replace("ˈ","")).replace("ˌ","")))
+                    
+#                     if not ipa:
+#                         await message.reply('Please include at least one alphabetic character in your prompt!', mention_author=False)
+#                         return
+
+#                     for word in ipa:
+#                         reply += '•••••••••••••••\n'
+                                
+#                         reply += f'Word: {words[ipa.index(word)]} ({word})\n'
+#                         syllables = []
+#                         i = 0
+
+#                         while i < len(word):
+#                             # Find the next vowel or diphthong
+#                             j = i
+#                             while j < len(word) and word[j] not in vowels:
+#                                 j += 1
+#                             if j == len(word):
+#                                 break
+
+#                             # Check for diphthong
+#                             if j < len(word) - 1 and word[j:j+2] in diphthongs:
+#                                 nucleus_end = j + 1
+#                             else:
+#                                 nucleus_end = j
+
+#                             # Find the onset of the next syllable
+#                             k = nucleus_end + 1
+#                             while k < len(word) and word[k] not in vowels:
+#                                 k += 1
+                            
+#                             if k < len(word):
+#                                 onsets = find_onsets(word[nucleus_end+1:k])
+                                
+#                                 # Find the longest onset cluster whose next character is a vowel
+#                                 if onsets:
+#                                     for onset in onsets:
+#                                         if (word[nucleus_end+1+onset[0]+onset[1]] in vowels):
+#                                             coda_end = nucleus_end+onset[1]
+#                                             break
+#                                 else:
+#                                     coda_end = k-1
+#                             else:
+#                                 coda_end = len(word) - 1
+
+#                             syllables.append((i, coda_end))
+#                             i = coda_end + 1
+                        
+#                         reply += f'Syllable count: {len(syllables)}\n'
+
+#                         for idx, (start, end) in enumerate(syllables):
+#                             syllable_text = word[start:end+1]
+#                             reply += f'  Syllable: {syllable_text}\n'
+
+#                             # Find onset
+#                             j = start
+#                             while j <= end and word[j] not in vowels:
+#                                 j += 1
+#                             if j > start:
+#                                 reply += f'     Onset: {word[start:j]}\n'
+#                             else:
+#                                 reply += f'     Onset: none\n'
+
+#                             # Find nucleus
+#                             k = j
+#                             while k <= end and (word[k] in vowels or (k < end and word[k:k+2] in diphthongs)):
+#                                 k += 1
+#                             reply += f'     Nucleus: {word[j:k]}\n'
+
+#                             # Find coda
+#                             if k <= end:
+#                                 reply += f'     Coda: {word[k:end+1]}\n'
+#                             else:
+#                                 reply += f'     Coda: none\n'
+
+#                     await message.channel.send(reply)
+                    
+#                 except Exception as e:
+#                     await message.channel.send(f'Sorry! An error occurred: {e}')
+#                 # Add the rest of the syllabification logic here, returning the result as a string
+#                 return "Syllabification analysis: " + text  # Replace with actual implementation
+#         elif command == 'tree':
+#             # Call existing tree generation logic and store result
+#             # This would need to be adapted from your existing handle_syntax_tree method
+#             result = "Tree generation functionality to be implemented"
+#         elif command == 'logic':
+#             # Call existing logic translation and store result
+#             # This would need to be adapted from your existing handle_logic method
+#             result = "Logic translation functionality to be implemented"
+#         elif command == 'morphology':
+#             # Call existing morphological analysis and store result
+#             # This would need to be adapted from your existing handle_morphology method
+#             result = "Morphological analysis functionality to be implemented"
+
+#         return jsonify({'result': result})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+
+# # Start Flask server when running directly
+# if __name__ == '__main__':
+#     # Start Discord bot in a separate thread
+#     import threading
+#     bot_thread = threading.Thread(target=lambda: client.run(DISCORD_TOKEN, log_handler=handler, log_level=logging.DEBUG))
+#     bot_thread.start()
+    
+#     # Start Flask server
+#     app.run(port=5000)
+
 class MyDiscord(discord.Client):
+    
+    def __init__(self, intents):
+        super().__init__(intents=intents)
+        self.other_guild_id = int(os.getenv("OTHER_GUILD_ID"))
+        self.other_channel_id = int(os.getenv("OTHER_CHANNEL_ID"))
+        
     def get_wordnet_pos(self, treebank_tag):
             if treebank_tag.startswith('J'):
                 return wordnet.ADJ
@@ -83,11 +290,7 @@ class MyDiscord(discord.Client):
                 return wordnet.ADV
             else:
                 return wordnet.NOUN
-    def __init__(self, intents):
-        super().__init__(intents=intents)
-        self.other_guild_id = int(os.getenv("OTHER_GUILD_ID"))
-        self.other_channel_id = int(os.getenv("OTHER_CHANNEL_ID"))
-        
+    
       
     async def on_ready(self):
         print(f'Logged in as {self.user}')
@@ -151,12 +354,26 @@ class MyDiscord(discord.Client):
 
     async def handle_ipa(self,message): 
         try:
-            text_to_translate = message.content[len('$ipa '):].strip()
+             # Initialize epitran with Tagalog/Filipino support
+            # epi_tl = epitran.Epitran('tgl-Latn')
+            
+            text_to_translate = message.content[len('$ipa '):].strip().encode('utf-8').decode('utf-8', errors='ignore')
+            
+            # Check if text starts with "tl:" for Tagalog
+            # if text_to_translate.startswith('tl:'):
+            #     # Remove the prefix and get Tagalog IPA
+            #     tagalog_text = text_to_translate[3:].strip()
+            #     ipa_text = epi_tl.transliterate(tagalog_text)
+            #     await message.channel.send(f'Tagalog IPA Translation: /{ipa_text}/')
+            #     return
+                
+            # Default English IPA using gruut
             for sent in sentences(text_to_translate,lang="en-us"):
                 for word in sent:
                     if word.phonemes:
                         phonemes_str = ' '.join(word.phonemes)
                         await message.channel.send(f'IPA Translation: /{phonemes_str}/')
+                        
         except Exception as e:
             await message.channel.send(f'Sorry! An error occurred: {e}')
 
@@ -323,9 +540,6 @@ class MyDiscord(discord.Client):
     
     
     async def handle_syntax_tree(self, message):
-        # You only have to download these once
-        # nltk.download('wordnet') 
-        # nltk.download('averaged_perceptron_tagger_eng')
         try:
             # Replace contractions
             prompt = message.content[len('$tree '):].replace("'", '').lower()
@@ -346,7 +560,7 @@ class MyDiscord(discord.Client):
                 "down", "during", "except", "for", "from", "in", "inside", "into", "near", "of", 
                 "off", "on", "out", "outside", "over", "past", "since", "through", "throughout", 
                 "to", "toward", "under", "underneath", "until", "up", "upon", "with", "within", 
-                "without", "to"
+                "without", "to","me"
             ]
 
             # https://www.vedantu.com/english/auxiliaries-and-modal-verbs#:~:text=The%20modal%20auxiliary%20words%20are,to%2C%20used%20to%2C%20etc.
@@ -374,6 +588,10 @@ class MyDiscord(discord.Client):
             complementizers = [
                 "that", "if", "whether", "for", '∅'
             ]
+            
+            interjections = [
+                "for", "oh", "wow", "yay", "yes", "no", "okay", "alas", "ouch", "oops", "uh", "uh-oh", "ugh", "yikes"   
+            ]
 
             def clean_word(word):
                 """ Clean the word by removing problematic characters. """
@@ -398,38 +616,30 @@ class MyDiscord(discord.Client):
 
             # no support for negation yet or other features, so no need to replace
             grammar = nltk.CFG.fromstring(f"""
-                CP -> C TP
-                TP -> DP TBar
-                TBar -> T AuxP
-                TBar -> T VP
+                CP -> C TP | TP
+                QP -> Q TP
+                TP -> DP TBar | T TBar
+                T -> T VP | T DP | T AP | T PP | T AdvP | T PP
+                TBar -> T AuxP | T VP 
                 AuxP -> Aux VP
-                VP -> V CP
-                VP -> V DP
-                VP -> V AP
-                VP -> VP PP
-                VP -> VP AdvP
-                VP -> V
-                DP -> D NP
-                NP -> AP NP
-                NP -> NP PP
-                NP -> N
+                VP -> V CP | V DP | V AP | VP PP | VP AdvP | V | V PP
+                DP -> D NP | DP PP | _D_
+                NP -> AP NP | NP PP | N | N PP
                 PP -> P DP
                 AP -> A
                 AdvP -> Adv 
-                DP -> _D_  
+                Q -> 'can' | 'could' | 'will' | 'would' | 'should' | 'may' | 'might'
                 C -> {complementizers_str}
                 _D_ -> {misc_DPs_str}
                 N -> {nouns_str}
                 V -> {verbs_str}
                 P -> {prepositions_str}
-                T -> {tense_str}
+                T -> {tense_str} | 'did'
                 D  -> {determiners_str}
                 A -> {adjectives_str}
                 Adv -> {adverbs_str}
-                Aux -> {auxiliaries_str}
+                Aux -> {auxiliaries_str} | 'did;
             """)
-
-            # print(verbs_str)
 
             # Tokenize the sentence
             tokenizer = RegexpTokenizer('(?u)\W+|\$[\d\.]+|\S+')
@@ -450,8 +660,8 @@ class MyDiscord(discord.Client):
                 elif (token[1].startswith('R') and token[1] != 'RP'):
                     lemmatized_token = wordnet_lemmatizer.lemmatize(token[0],'r')
                 if not any (c.isspace() for c in lemmatized_token):
-                    print(lemmatized_token)
-                    print(f'this tokens label is: {token[1]}\n')
+                    #print(lemmatized_token)
+                    #print(f'this tokens label is: {token[1]}\n')
                     # do not consider auxiliaries
                     if (token[1].startswith('V')):
                         # it might be calculating the index wrong due to a typo
@@ -466,7 +676,7 @@ class MyDiscord(discord.Client):
             lemmatized_tokens.insert(0, '∅')
 
             filtered_tokens = [t for t in lemmatized_tokens if not any(c.isspace() for c in t)]
-            print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
+            #print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
                 
             reply = ''
 

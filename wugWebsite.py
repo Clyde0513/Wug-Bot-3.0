@@ -1,0 +1,778 @@
+import discord
+import logging
+import asyncio
+import os
+from dotenv import load_dotenv
+from discord.ext import commands
+import eng_to_ipa as ipa
+from discord import Emoji
+import requests
+import json
+from gruut import sentences
+import argostranslate.package
+import argostranslate.translate
+import time
+from collections import defaultdict
+import regex as re
+import unicodedata
+import nltk
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+from nltk import StanfordTagger
+from nltk.tokenize import RegexpTokenizer
+#import epitran
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use("TkAgg")
+from io import BytesIO
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+# api_instance = argostranslate.apis.LibreTranslateAPI()
+codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
+mappings = set()
+processed = set()
+cooldown = {}
+
+# Download and install Argos Translate package
+argostranslate.package.update_package_index()
+available_packages = argostranslate.package.get_available_packages()
+
+# Build a dictionary of available packages based on (from_code, to_code)
+package_dict = {
+    (pkg.from_code, pkg.to_code): pkg for pkg in available_packages
+}
+
+for from_code in codes:
+    if from_code in processed:
+        continue
+    for to_code in codes:
+        if from_code == to_code:
+            continue
+        package_to_install = package_dict.get((from_code, to_code))
+        if package_to_install is not None:
+            #argostranslate.package.install_from_path(package_to_install.download())
+            mappings.add((from_code, to_code))
+            processed.add(from_code)
+            print((from_code, to_code))
+
+###------------------------------Error Debugging------------------------------###
+
+
+# DICTIONARY_TOKEN = os.getenv('DICTIONARY')
+# THESAURUS_TOKEN = os.getenv('THESAURUS')
+# LEARNERS_TOKEN = os.getenv('LEARNERS') # for IPA
+handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+###-------------------------------------------------------------------------------------------###
+
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+def get_wordnet_pos(treebank_tag):
+            if treebank_tag.startswith('J'):
+                return wordnet.ADJ
+            elif treebank_tag.startswith('V'):
+                return wordnet.VERB
+            elif treebank_tag.startswith('N'):
+                return wordnet.NOUN
+            elif treebank_tag.startswith('R'):
+                return wordnet.ADV
+            else:
+                return wordnet.NOUN
+
+@app.route('/api/command', methods=['POST'])
+def handle_command():
+    try:
+        data = request.json
+        command = data.get('command')
+        text = data.get('text')
+        from_lang = data.get('fromLang')
+        to_lang = data.get('toLang')
+
+        result = ""
+        if command == 'ipa':
+            # Use gruut for IPA translation
+            for sent in sentences(text, lang="en-us"):
+                for word in sent:
+                    if word.phonemes:
+                        result += f"/{' '.join(word.phonemes)}/ "
+        elif command == 'translate':
+            if (from_lang, to_lang) in mappings:
+                result = argostranslate.translate.translate(text, from_lang, to_lang)
+            else:
+                # Try intermediate translation
+                for code in codes:
+                    if code == from_lang or code == to_lang:
+                        continue
+                    if (from_lang, code) in mappings and (code, to_lang) in mappings:
+                        temp = argostranslate.translate.translate(text, from_lang, code)
+                        result = argostranslate.translate.translate(temp, code, to_lang)
+                        break
+        elif command == 'syllabify':
+                result = ""
+                # Copy the syllabification logic from MyDiscord.handle_syllabification
+                # but remove self references and return the result instead of sending messages
+                # Source: https://en.wikipedia.org/wiki/IPA_vowel_chart_with_audio
+                vowels = set(['i','y','ɨ','ʉ','ɯ','u','ɪ','ʏ','ʊ','e','ø','ɘ','ɵ','ɤ','o','ə','ɛ','œ','ɜ','ɞ','ʌ','ɔ','æ',
+                'ɐ','a','ɶ','ä','ɑ','ɒ','ɚ'])
+
+                # Source: https://en.wikipedia.org/wiki/Diphthong
+                diphthongs = set(['oʊ', 'aʊ', 'aɪ', 'eɪ', 'ɔɪ'])
+
+                # Source: https://en.wikipedia.org/wiki/Help:IPA/English
+                onsetClusters = set(['p','b','t','ɾ','d','tʃ','dʒ','k','ɡ','dj','ð','f','g','h','j',
+                'k','l','lj','m','n','nj','ɹ','s','ʃ','v','w','z','ʒ','θ','pl','bl','kl','gl','pɹ','bɹ','tɹ','dɹ','kɹ',
+                'gɹ','ɡɹ','ɡ','tw','dw','gw','kw','pw','fl','sl','θl','ʃl','fɹ','θɹ','ʃɹ','sw','θw','vw','pj','bj','tj','kj','gj',
+                'mj','fj','vj','θj','sj','zj','hj','lj','sp','st','sk','sm','sn','sf','sθ','spl','skl','spɹ','stɹ','skw',
+                'spj','stj','skj','smj','snj','sfɹ'])
+
+                try:
+                    def remove_diacritics(s):
+                        # Normalize to NFD (Normalization Form D) to decompose characters
+                        s_decomposed = unicodedata.normalize('NFD', s)
+                        
+                        # Filter out combining diacritic marks
+                        s_no_diacritics = ''.join(c for c in s_decomposed if not unicodedata.combining(c))
+                    
+                        # Optionally, normalize back to NFC (Normalization Form C) if needed
+                        return unicodedata.normalize('NFC', s_no_diacritics)
+
+                    def find_onsets(cluster):
+                        n = len(cluster)
+                        lengths = []
+                
+                        # Iterate over all possible starting points for substrings
+                        for start in range(len(cluster)):
+                            # Iterate over all possible ending points for substrings starting from `start`
+                            for end in range(start + 1, n + 1):
+                                substring = cluster[start:end]
+                                if substring in onsetClusters:
+                                    lengths.append(((end-start), start, end))
+                    
+                        return sorted(lengths, reverse=True, key=lambda x: x[0])
+                    
+                    cleaned_string = re.sub(r'[^a-zA-Z\s-]', '', text)
+                    reply = ''
+                    words = []
+                    ipa = []
+
+                    # Convert each word in the sentence to IPA
+                    for sent in sentences(cleaned_string,lang="en-us"):
+                        for word in sent:
+                            if (word.phonemes):
+                                words.append(word.text)
+                                ipa.append(remove_diacritics(((''.join(word.phonemes)).replace("ˈ","")).replace("ˌ","")))
+                    
+                    # if not ipa:
+                    #     await message.reply('Please include at least one alphabetic character in your prompt!', mention_author=False)
+                    #     return
+
+                    for word in ipa:
+                        reply += '\n'
+                                
+                        reply += f'Word: {words[ipa.index(word)]} ({word})\n'
+                        syllables = []
+                        i = 0
+
+                        while i < len(word):
+                            # Find the next vowel or diphthong
+                            j = i
+                            while j < len(word) and word[j] not in vowels:
+                                j += 1
+                            if j == len(word):
+                                break
+
+                            # Check for diphthong
+                            if j < len(word) - 1 and word[j:j+2] in diphthongs:
+                                nucleus_end = j + 1
+                            else:
+                                nucleus_end = j
+
+                            # Find the onset of the next syllable
+                            k = nucleus_end + 1
+                            while k < len(word) and word[k] not in vowels:
+                                k += 1
+                            
+                            if k < len(word):
+                                onsets = find_onsets(word[nucleus_end+1:k])
+                                
+                                # Find the longest onset cluster whose next character is a vowel
+                                if onsets:
+                                    for onset in onsets:
+                                        if (word[nucleus_end+1+onset[0]+onset[1]] in vowels):
+                                            coda_end = nucleus_end+onset[1]
+                                            break
+                                else:
+                                    coda_end = k-1
+                            else:
+                                coda_end = len(word) - 1
+
+                            syllables.append((i, coda_end))
+                            i = coda_end + 1
+                        
+                        reply += f'Syllable count: {len(syllables)}\n'
+
+                        for idx, (start, end) in enumerate(syllables):
+                            syllable_text = word[start:end+1]
+                            reply += f'  Syllable: {syllable_text}\n'
+
+                            # Find onset
+                            j = start
+                            while j <= end and word[j] not in vowels:
+                                j += 1
+                            if j > start:
+                                reply += f'     Onset: {word[start:j]}\n'
+                            else:
+                                reply += f'     Onset: none\n'
+
+                            # Find nucleus
+                            k = j
+                            while k <= end and (word[k] in vowels or (k < end and word[k:k+2] in diphthongs)):
+                                k += 1
+                            reply += f'     Nucleus: {word[j:k]}\n'
+
+                            # Find coda
+                            if k <= end:
+                                reply += f'     Coda: {word[k:end+1]}\n'
+                            else:
+                                reply += f'     Coda: none\n'
+
+                    result = "Syllabification analysis: " + reply    
+                    
+                except Exception as e:
+                        return "Error: " + e
+        elif command == 'tree':
+            # Replace contractions
+            prompt = text
+            words = re.sub(r'[^a-zA-Z\s]', '', prompt)  # Modify to keep hyphens
+
+            # Extract nouns, verbs, and prepositions from WordNet
+            def get_words(pos_tag):
+                return list(set(word for synset in wordnet.all_synsets(pos_tag) for word in synset.lemma_names()))
+            
+            nouns = get_words(wordnet.NOUN)
+            verbs = get_words(wordnet.VERB)
+            adjectives = get_words(wordnet.ADJ)
+            adverbs = get_words(wordnet.ADV)
+
+            prepositions = [
+                "about", "above", "across", "after", "against", "along", "among", "around", "at", 
+                "before", "behind", "below", "beneath", "beside", "between", "beyond", "by", 
+                "down", "during", "except", "for", "from", "in", "inside", "into", "near", "of", 
+                "off", "on", "out", "outside", "over", "past", "since", "through", "throughout", 
+                "to", "toward", "under", "underneath", "until", "up", "upon", "with", "within", 
+                "without", "to","me"
+            ]
+
+            # https://www.vedantu.com/english/auxiliaries-and-modal-verbs#:~:text=The%20modal%20auxiliary%20words%20are,to%2C%20used%20to%2C%20etc.
+            modals = [
+                "can", "could", "may", "might", "must", "shall", "should", "will", "would"
+            ]
+
+            auxiliaries = [
+                "have", "be", "been", "am", "are", "is"
+            ]
+
+            # Replace possessives later with their formal representations. Forget about D' for now
+            determiners = [
+                "the", "a", "an", "this", "that", "his", "her", "their", "its", "my", "your"
+            ]
+
+            DP_subjs = [
+                "i", "you", "he", "she", "it", "we", "they", "this", "that"
+            ]
+
+            DP_objs = [
+                "me", "you", "him", "her", "it", "us", "them", "this", "that"
+            ]
+
+            complementizers = [
+                "that", "if", "whether", "for", '∅'
+            ]
+            
+            interjections = [
+                "for", "oh", "wow", "yay", "yes", "no", "okay", "alas", "ouch", "oops", "uh", "uh-oh", "ugh", "yikes"   
+            ]
+
+            def clean_word(word):
+                """ Clean the word by removing problematic characters. """
+                return word.replace('-', '_').replace("'", "")  # Replace hyphens with underscores and remove apostrophes
+
+            # Example CFG with dynamically added words
+            nouns_str = " | ".join([f"'{clean_word(noun)}'" for noun in nouns])  
+            verbs_str = " | ".join([f"'{clean_word(verb)}'" for verb in verbs])  
+            adjectives_str = " | ".join([f"'{clean_word(adjective)}'" for adjective in adjectives])  
+            adverbs_str = " | ".join([f"'{clean_word(adverb)}'" for adverb in adverbs])  
+            prepositions_str = " | ".join([f"'{preposition}'" for preposition in prepositions])
+            tense_str = "'+PAST' | '-PAST' | 'to' | " + " | ".join([f"'{modal}'" for modal in modals])
+           #  print(f'tense_str: {tense_str}') # why is it not printing...
+            determiners_str = " | ".join([f"'{determiner}'" for determiner in determiners])
+            # workaround for now, should probably find a way to separate the subj and obj positions
+            misc_DPs_str = " | ".join([f"'{DP}'" for DP in (DP_subjs + DP_objs)])
+            print(misc_DPs_str)
+            auxiliaries_str = " | ".join([f"'{auxiliary}'" for auxiliary in auxiliaries])
+            complementizers_str = " | ".join([f"'{complementizer}'" for complementizer in complementizers])
+
+            # I cannot add complementizers right now, since it doesn't seem to even parse unless the input can get a root node?
+
+            # no support for negation yet or other features, so no need to replace
+            grammar = nltk.CFG.fromstring(f"""
+                CP -> C TP | TP
+                QP -> Q TP
+                TP -> DP TBar | T TBar
+                T -> T VP | T DP | T AP | T PP | T AdvP | T PP
+                TBar -> T AuxP | T VP 
+                AuxP -> Aux VP
+                VP -> V CP | V DP | V AP | VP PP | VP AdvP | V | V PP
+                DP -> D NP | DP PP | _D_
+                NP -> AP NP | NP PP | N | N PP
+                PP -> P DP
+                AP -> A
+                AdvP -> Adv 
+                Q -> 'can' | 'could' | 'will' | 'would' | 'should' | 'may' | 'might'
+                C -> {complementizers_str}
+                _D_ -> {misc_DPs_str}
+                N -> {nouns_str}
+                V -> {verbs_str} | 'eaten'
+                P -> {prepositions_str}
+                T -> {tense_str} | 'did'
+                D  -> {determiners_str}
+                A -> {adjectives_str}
+                Adv -> {adverbs_str}
+                Aux -> {auxiliaries_str} | 'did' | 'have' | 'be' | 'been' | 'am' | 'are' | 'is' | 'did'
+            """)
+
+            # Tokenize the sentence
+            tokenizer = RegexpTokenizer('(?u)\W+|\$[\d\.]+|\S+')
+
+            # https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
+            wordnet_lemmatizer = WordNetLemmatizer()
+            tokens = tokenizer.tokenize(words)
+            tagged_tokens = nltk.pos_tag(tokens)
+            lemmatized_tokens = []
+            for token in tagged_tokens:
+                lemmatized_token = token[0]
+                if (token[1].startswith('N')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'n')
+                elif (token[1].startswith('V')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'v')
+                elif (token[1].startswith('J')):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0], 'a')
+                elif (token[1].startswith('R') and token[1] != 'RP'):
+                    lemmatized_token = wordnet_lemmatizer.lemmatize(token[0],'r')
+                if not any (c.isspace() for c in lemmatized_token):
+                    #print(lemmatized_token)
+                    #print(f'this tokens label is: {token[1]}\n')
+                    # do not consider auxiliaries
+                    if (token[1].startswith('V')):
+                        # it might be calculating the index wrong due to a typo
+                        # tagged_tokens.index(token) > 0 and not tagged_tokens[tagged_tokens.index(token)-1][1].startswith('V')):
+                        if token[1] in ['VBD', 'VBN']:
+                            lemmatized_tokens.append('+PAST')
+                        else:
+                            lemmatized_tokens.append('-PAST')
+                         #   lemmatized_tokens.append('-PAST')
+                           # print(f'added after: {token[0]}')
+                lemmatized_tokens.append(lemmatized_token)
+            lemmatized_tokens.insert(0, '∅')
+
+            filtered_tokens = [t for t in lemmatized_tokens if not any(c.isspace() for c in t)]
+            #print(f'tokens after filtering: {filtered_tokens}') # why is it not parsing???
+                
+            reply = ''
+
+            # Parse the sentence
+            parser = nltk.ChartParser(grammar) # issue: there are no trees being generated?
+            trees = list(parser.parse(filtered_tokens))
+            
+            def tree_to_ascii_art(tree):
+                return tree.__str__()
+            
+            # if not trees:
+            #     await message.channel.send("Sorry, can't parse this sentence with current grammar")
+                
+            for i, tree in enumerate(trees, 1):
+            # Convert the tre to ASCII art
+                ascii = nltk.tree.TreePrettyPrinter(tree).text()
+                # print(var)
+
+            # Convert the tree to ASCII art
+                ascii_tree = tree_to_ascii_art(tree)
+                
+                # Split the ASCII tree into chunks if it's too long
+                # max_message_length = 2000  # Discord's message length limit
+                # tree_chunks = [ascii_tree[i:i+max_message_length] for i in range(0, len(ascii_tree), max_message_length)]
+                
+                # Format the parse result with proper escaping
+                result = f"Parse {i}:\n```\n{ascii_tree}\n```"
+                
+                # Add the ASCII representation
+                if ascii:  # Only add if ascii variable exists and is not empty
+                    result += f"\nASCII representation:\n```\n{ascii}\n```"
+                
+            # for tree in parser.parse(filtered_tokens):
+            #     fig = plt.figure()
+            #     nltk.tree.Tree.fromstring(str(tree)).draw()
+            #     buffer = BytesIO()
+            #     plt.savefig(buffer, format='png')
+            #     buffer.seek(0)
+            #     file = discord.File(buffer, filename='syntax_tree.png')
+            #     await message.channel.send(file=file)
+            #     plt.clf()
+            #     plt.close(fig)
+                
+            #     parse_string = ' '.join(str(tree).split()) 
+            #     reply += parse_string
+               #  print(f'tokens: {parse_string}')
+            
+            
+
+        elif command == 'logic':
+            result = text 
+            tokens = nltk.word_tokenize(result)
+            pos_tags = nltk.pos_tag(tokens)
+            
+            # Simple mapping of POS tags to logic symbols
+            logic_mapping = {
+                'NN': 'N',  # Noun
+                'VB': 'V',  # Verb
+                'VBD': 'V',  # Past Tense Verb
+                'VBG': 'V',  # Gerund Verb
+                'VBN': 'V',  # Past Participle Verb
+                'VBP': 'V',  # Non-3rd Person Singular Present Verb
+                'VBZ': 'V',  # 3rd Person Singular Present Verb
+                'JJ': 'A',  # Adjective
+                'RB': 'Adv',  # Adverb
+                'DT': 'D',  # Determiner
+                'IN': 'P',  # Preposition
+                'PRP': 'Pron',  # Pronoun
+                'CC': 'Conj',  # Conjunction
+                'TO': 'Inf',  # Infinitive marker
+                'MD': 'Mod',  # Modal
+                'NEG': 'Neg'  # Negation
+            }
+            
+            logic_representation = []
+            for word, pos in pos_tags:
+                logic_symbol = logic_mapping.get(pos, pos)
+                logic_representation.append(f"{logic_symbol}({word})")
+            
+            logic_sentence = ' ∧ '.join(logic_representation)
+            result = "Logic Representation: " + logic_sentence
+        elif command == 'morphology':
+            lemmatizer = WordNetLemmatizer()
+            prefixes = {
+                'un': 'negation',
+                're': 'again',
+                'dis': 'not',
+                'pre': 'before',
+                'post': 'after',
+                'anti': 'against',
+                'pro': 'for',
+                'sub': 'under',
+                'inter': 'between',
+                'super': 'above',
+                'semi': 'half',
+                'bi': 'two',
+                'tri': 'three',
+                'quad': 'four',
+                'multi': 'many',
+                'non': 'not',
+                'in': 'not',
+                'im': 'not',
+                'il': 'not',
+                'ir': 'not',
+                'mis': 'wrong',
+                'over': 'too much',
+                'under': 'too little',
+                'hyper': 'too much',
+                'hypo': 'too little',
+                'sub': 'under',
+                'super': 'above',
+                'ultra': 'beyond',
+                'out': 'beyond',
+                'extra': 'beyond',
+                'intra': 'within',
+                'intro': 'within',
+                'extra': 'beyond',
+                'ex': 'former',
+                'co': 'with',
+                'com': 'with',
+                'con': 'with',
+                'col': 'with',
+                'cor': 'with',
+                'syn': 'with',
+                'sym': 'with',
+                'de': 'down',
+                'dis': 'away',
+                'ex': 'out',
+                'em': 'in',
+                'en': 'in',
+                'fore': 'before',
+                'in': 'in',
+                'im': 'in',
+                'il': 'in',
+                'ir': 'in',
+            }
+            suffixes = {
+                'ing': {'type': 'inflectional', 'meaning': 'continuous action'},
+                'ed': {'type': 'inflectional', 'meaning': 'past tense'},
+                'er': {'type': 'derivational', 'meaning': 'agent'},
+                'tion': {'type': 'derivational', 'meaning': 'process'},
+                'ness': {'type': 'derivational', 'meaning': 'quality'},
+                'ly': {'type': 'derivational', 'meaning': 'manner'},
+                'ful': {'type': 'derivational', 'meaning': 'full of'},
+                'able': {'type': 'derivational', 'meaning': 'can be'},
+                'less': {'type': 'derivational', 'meaning': 'without'},
+                'est': {'type': 'derivational', 'meaning': 'superlative'},
+                's': {'type': 'inflectional', 'meaning': 'plural'},
+                'es': {'type': 'inflectional', 'meaning': 'plural'},
+            }
+            
+            cases = {
+                'nominative': 'subject',
+                'accusative': 'direct object',
+                'dative': 'indirect object',
+                'genitive': 'possessive',
+            }
+            
+            result = text
+            tokens = nltk.word_tokenize(result)
+            pos_tags = nltk.pos_tag(tokens)
+            
+            # morphemes = []
+            reply = []
+            for word, pos in pos_tags:
+                analysis = []
+                analysis.append(f"\n\nWord Analysis: {word}\n")
+                
+                # Plural rules
+                plural_rules = {
+                    'es_words': ['bush', 'box', 'church', 'dish', 'watch'],
+                    'irregular_plurals': {
+                        'leaves': 'leaf',
+                        'lives': 'life',
+                        'shelves': 'shelf',
+                        'wolves': 'wolf',
+                        'children': 'child',
+                        'people': 'person',
+                        'mice': 'mouse',
+                        'geese': 'goose',
+                        'teeth': 'tooth',
+                        'feet': 'foot',
+                    }
+                }
+                
+                # POS Identification
+                pos_name = {
+                    'NN': 'Noun', 
+                    'VB': 'Verb',
+                    'JJ': 'Adjective',
+                    'RB': 'Adverb',
+                    'DT': 'Determiner',
+                    'IN': 'Preposition',
+                    'PRP': 'Pronoun',
+                    'CC': 'Conjunction',
+                    'TO': 'Infinitive',
+                    'MD': 'Modal',
+                    'NEG': 'Negation',
+                    'CD': 'Cardinal Number',
+                    'UH': 'Interjection',
+                    'FW': 'Foreign Word',
+                    'SYM': 'Symbol',
+                    'LS': 'List Item',
+                    'PDT': 'Predeterminer',
+                    'POS': 'Possessive Ending',
+                    'RP': 'Particle',
+                    'WP': 'Wh-pronoun',
+                }.get(pos[:2], 'Unknown')
+                analysis.append(f"\nPart of Speech: {pos_name}")
+                
+                # Base form
+                analysis.append(f"\nBase Form: {word}")
+                
+                # Track Morphological Process
+                process_steps = []
+                current_form = str(word)
+                base_form = str(lemmatizer.lemmatize(word, get_wordnet_pos(pos)))
+
+                                
+                # Morpheme breakdown
+                root = word
+                found_morphemes = []
+                
+                
+                # Document Transformation rules
+                if word.endswith('ing'):
+                    if base_form.endswith('e'):
+                        step = f"{base_form} → {base_form[:-1]} (e-dropping)"
+                        process_steps.append(str(step))
+                        current_form = base_form[:-1]
+                    step = f"{current_form} → {current_form} (add -ing)"
+                    process_steps.append(str(step))
+                    
+                elif word.endswith('ed'):
+                    if base_form.endswith('e'):
+                        step = f"{base_form} → {base_form[:-1]} (e-dropping)"
+                        process_steps.append(str(step))
+                        current_form = base_form[:-1]
+                    step = f"{current_form} → {current_form + 'ed'} (add -ed)"
+                    
+                elif word.endswith('ful'):
+                    step = f"{base_form} → {base_form[:-3]} (ful to nothing)"
+                    process_steps.append(str(step))
+                    current_form = base_form[:-3]
+                    step = f"{current_form} → {current_form + 'ful'} (add -ful)"
+            
+                    
+                elif word.endswith('s'):
+                    if base_form.endswith('y'):
+                        step = f"{base_form} → {base_form[:-1]} (y to i)"
+                        process_steps.append(str(step))
+                        current_form = base_form[:-1]
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('ch'):
+                    step = f"{base_form} → {base_form + 'tch'} (ch to tch)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'tch'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                    
+                
+                elif word.endswith('s') and base_form.endswith('sh'):
+                    step = f"{base_form} → {base_form + 'sh'} (sh to sh)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'sh'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('es'):
+                    step = f"{base_form} → {base_form + 'x'} (x to x)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'x'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('z'):
+                    step = f"{base_form} → {base_form + 'z'} (z to z)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'z'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('s'):
+                    step = f"{base_form} → {base_form + 'es'} (s to es)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'es'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('f'):
+                    step = f"{base_form} → {base_form[:-1] + 've'} (f to ve)"
+                    process_steps.append(str(step))
+                    current_form = base_form[:-1] + 've'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('fe'):
+                    step = f"{base_form} → {base_form[:-2] + 've'} (fe to ve)"
+                    process_steps.append(str(step))
+                    current_form = base_form[:-2] + 've'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('o'):
+                    step = f"{base_form} → {base_form + 'e'} (o to oe)"
+                    process_steps.append(str(step))
+                    current_form = base_form + 'e'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                
+                elif word.endswith('s') and base_form.endswith('y'):
+                    step = f"{base_form} → {base_form[:-1] + 'i'} (y to i)"
+                    process_steps.append(str(step))
+                    current_form = base_form[:-1] + 'i'
+                    step = f"{current_form} → {current_form + 's'} (add -s)"
+                                
+                if process_steps:
+                    analysis.append("\n\nMorphological Process: ")
+                    analysis.extend([str(step) for step in process_steps])
+                
+                if word.endswith('es'):
+                # Check if word is in irregular plurals
+                    if word in plural_rules['irregular_plurals']:
+                        root = plural_rules['irregular_plurals'][word]
+                    # Check if word needs -es plural
+                    elif word[:-2] in plural_rules['es_words']:
+                        root = word[:-2]
+                    # Handle words ending in -s/-sh/-ch/-x/-z
+                    elif any(word[:-2].endswith(x) for x in ['s', 'sh', 'ch', 'x', 'z']):
+                        root = word[:-2]
+                    else:
+                        root = lemmatizer.lemmatize(word, self.get_wordnet_pos(pos))
+                elif word.endswith('oes'):
+                    if word in plural_rules['irregular_plurals']:
+                        root = plural_rules['irregular_plurals'][word]
+                    elif word[:-3] in plural_rules['es_words']:
+                        root = word[:-3]
+                    elif any(word[:-3].endswith(x) for x in ['s', 'sh', 'ch', 'x', 'z']):
+                        root = word[:-3]
+                    else:
+                        root = lemmatizer.lemmatize(word, get_wordnet_pos(pos))
+                else:
+                    root = lemmatizer.lemmatize(word, get_wordnet_pos(pos))
+                
+                
+                # Prefix Analysis
+                for prefix, meaning in prefixes.items():
+                    if word.startswith(prefix):
+                        #root = root[len(prefix):]
+                        found_morphemes.append(f"Prefix: '{prefix}-': ({meaning})")
+                
+                for suffix, info in suffixes.items():
+                    if word.endswith(suffix):
+                        #root = root[:-len(suffix)]
+                        found_morphemes.append(f"Suffix: '-{suffix}': ({info['type']}, {info['meaning']})")
+                        
+                # Root word
+                analysis.append(f"\nRoot: {root}")
+                
+                # Morhpemes Found
+                if found_morphemes:
+                    analysis.append("\nMorphemes Found:")
+                    for m in found_morphemes:
+                        analysis.append(f"- {m}")
+                        
+                 # Rules applied
+                if word.endswith('ing') and not root.endswith('e'):
+                    analysis.append(" Rule: e-dropping before -ing")
+                if word.endswith('ed') and len(root) > 1 and root[-1] == root[-2]:
+                    analysis.append(" Rule: consonant doubling")
+                if word.endswith('ed') and root.endswith('e'):
+                    analysis.append(" Rule: e-dropping before -ed")
+                if word.endswith('s') and root.endswith('y'):
+                    analysis.append(" Rule: y to i before -s")
+                if word.endswith('s') and root.endswith('o'):
+                    analysis.append(" Rule: o to oe before -s")
+                if word.endswith('s') and root.endswith('ch'):
+                    analysis.append(" Rule: ch to tch before -s")
+                if word.endswith('s') and root.endswith('sh'):
+                    analysis.append(" Rule: sh to sh before -s")
+                if word.endswith('s') and root.endswith('x'):
+                    analysis.append(" Rule: x to x before -s")
+                if word.endswith('s') and root.endswith('z'):
+                    analysis.append(" Rule: z to z before -s")
+                if word.endswith('s') and root.endswith('s'):
+                    analysis.append(" Rule: s to es before -s")
+                if word.endswith('s') and root.endswith('f'):
+                    analysis.append(" Rule: f to ve before -s")
+                if word.endswith('s') and root.endswith('fe'):
+                    analysis.append(" Rule: fe to ve before -s")
+                    
+                
+                reply.extend(analysis)
+            
+            result = "Morphological Analysis: " + ''.join(reply)
+
+        return jsonify({'result': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Add this handler for Vercel
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    return jsonify({'status': 'API is running'})

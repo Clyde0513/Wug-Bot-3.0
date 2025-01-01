@@ -2,3 +2,8 @@
 .gitignore
 .conda
 discord.log
+
+.codegpt
+node_modules
+.codegpt
+.vercel

@@ -1,9 +1,0 @@
-discord.py
-python-dotenv
-eng-to-ipa
-requests
-gruut
-argostranslate
-nltk
-regex
-matplotlib
