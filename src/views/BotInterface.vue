@@ -284,3 +284,26 @@ label {
   animation: fadeIn 0.3s ease-out;
 }
 </style>
+<!-- {
+  "version": 2,
+  "builds": [
+    {
+      "src": "wugWebsite.py",
+      "use": "@vercel/python",
+      "config": { 
+        "runtime": "python3.11",
+        "maxLambdaSize": "15mb"  
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "wugWebsite.py"
+    }
+  ],
+  "env": {
+    "PYTHONPATH": ".",
+    "NLTK_DATA": "/tmp/nltk_data"  
+  }
+} -->

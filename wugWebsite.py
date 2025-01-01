@@ -28,6 +28,10 @@ from io import BytesIO
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
+nltk.download('punkt', download_dir='/tmp/nltk_data')
+nltk.download('averaged_perceptron_tagger', download_dir='/tmp/nltk_data')
+nltk.download('wordnet', download_dir='/tmp/nltk_data')
+
 # api_instance = argostranslate.apis.LibreTranslateAPI()
 codes = [ "ar", "zh", "en", "fr", "de", "hi", "it", "ja", "pl", "pt", "tr", "ru", "es" ]
 mappings = set()
